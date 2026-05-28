@@ -49,17 +49,19 @@ def _dim(text: str) -> None:
 
 # ── Stage printers ────────────────────────────────────────────────────────────
 
-def _show_dispatch(update: dict) -> None:
+def _show_dispatch(update: dict, client_mode: str = "MOCK_MODEL_MODE") -> None:
     task   = update.get("active_task")
     tier   = update.get("model_tier", ModelTier.FAST)
     budget = get_budget(tier)
     risk   = task.risk_level.upper() if task else "UNKNOWN"
     rc     = "red" if risk == "HIGH" else "yellow"
+    mc     = "green" if client_mode == "REAL_QWEN_MODE" else "dim"
 
     _hdr("DISPATCH", "bold cyan")
     _row("Task",        task.description if task else "n/a")
     _row("Risk level",  f"[bold {rc}]{risk}[/bold {rc}]")
     _row("Model route", f"[bold magenta]{budget.model_name}[/bold magenta]  ({tier.upper()} tier)")
+    _row("Client mode", f"[{mc}]{client_mode}[/{mc}]")
 
 
 def _show_generate(update: dict, model_tier: ModelTier) -> None:
@@ -148,6 +150,10 @@ def run(
     """Run the AeonLogic recursive agent pipeline on a goal."""
     on_startup()
 
+    from aeonlogic.config.settings import get_settings
+    _settings = get_settings()
+    client_mode = _settings.client_mode_label
+
     session_id = new_ulid()
 
     console.print()
@@ -201,7 +207,7 @@ def run(
             # ── DISPATCH ─────────────────────────────────────────────────────
             if node_name == "dispatch":
                 current_model_tier = update.get("model_tier", ModelTier.FAST)
-                _show_dispatch(update)
+                _show_dispatch(update, client_mode=client_mode)
 
             # ── GENERATE / REPAIR ─────────────────────────────────────────────
             elif node_name == "generate":

@@ -11,19 +11,15 @@ class ModelBudget(BaseModel):
     temperature: float = 0.7
 
 
-_BUDGETS: dict[ModelTier, ModelBudget] = {
-    ModelTier.FAST: ModelBudget(
-        model_name="qwen-turbo",
-        max_tokens=4096,
-        temperature=0.7,
-    ),
-    ModelTier.STRONG: ModelBudget(
-        model_name="qwen-plus",
-        max_tokens=8192,
-        temperature=0.5,
-    ),
-}
-
-
 def get_budget(tier: ModelTier) -> ModelBudget:
-    return _BUDGETS[tier]
+    """
+    Return a ModelBudget for the given tier.
+    Model names are read from settings so they can be overridden via env vars
+    (QWEN_FAST_MODEL / QWEN_DEEP_MODEL) without code changes.
+    """
+    from aeonlogic.config.settings import get_settings
+
+    s = get_settings()
+    if tier == ModelTier.STRONG:
+        return ModelBudget(model_name=s.qwen_deep_model,  max_tokens=8192, temperature=0.5)
+    return ModelBudget(model_name=s.qwen_fast_model, max_tokens=4096, temperature=0.7)

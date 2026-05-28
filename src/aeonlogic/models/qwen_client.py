@@ -1,8 +1,23 @@
 from __future__ import annotations
 
+from typing import Protocol, runtime_checkable
+
 from aeonlogic.models.budgets import ModelBudget
 
-# ── Mock content: attempt 1 — intentional security weaknesses ─────────────────
+
+# ── Client protocol ───────────────────────────────────────────────────────────
+
+@runtime_checkable
+class ModelClientProtocol(Protocol):
+    """Structural protocol satisfied by every model client implementation."""
+
+    def complete(self, budget: ModelBudget, prompt: str) -> str:
+        """Send a completion request; return the response text."""
+        ...
+
+
+# ── Mock client (deterministic, no API key required) ─────────────────────────
+
 _WEAK_AUTH_CODE = """\
 # auth.py - API authentication module (initial draft)
 import jwt
@@ -20,7 +35,6 @@ def validate_token(token):
     return data["user"]
 """
 
-# ── Mock content: attempt 2 — security-hardened after critique ────────────────
 _SECURE_AUTH_CODE = """\
 # auth.py - Security-hardened API authentication module
 import os
@@ -67,21 +81,17 @@ def _check_credentials(username: str, password: str) -> bool:
 
 
 class MockQwenClient:
-    """Deterministic mock — no real API calls. Returns task-aware content."""
+    """Deterministic mock — no API key required. Returns task-aware content."""
 
     def complete(self, budget: ModelBudget, prompt: str) -> str:
         p = prompt.lower()
-
-        # Auth / security task responses
-        is_auth = any(kw in p for kw in ("auth", "authentication", "login", "token", "credential"))
+        is_auth   = any(kw in p for kw in ("auth", "authentication", "login", "token", "credential"))
         is_repair = "findings to address" in p
 
         if is_auth and is_repair:
             return _SECURE_AUTH_CODE
         if is_auth:
             return _WEAK_AUTH_CODE
-
-        # Generic fallback responses
         if "decompose" in p or "classify" in p:
             return f"[{budget.model_name}] Task decomposed and risk classified."
         if "synthesize" in p or "learnings" in p:
@@ -89,8 +99,53 @@ class MockQwenClient:
         return f"[{budget.model_name}] Processed: {prompt[:60]}..."
 
 
-_client = MockQwenClient()
+# ── Real Qwen client (OpenAI-compatible DashScope API) ────────────────────────
+
+class QwenClient:
+    """
+    Production client for Qwen models via the DashScope OpenAI-compatible API.
+    Requires QWEN_API_KEY to be configured. Instantiate only when is_real_qwen_mode=True.
+    """
+
+    def __init__(self, api_key: str, base_url: str) -> None:
+        # Deferred import: openai is only imported when a real client is needed,
+        # so tests without an API key never trigger this code path.
+        from openai import OpenAI  # noqa: PLC0415
+
+        self._client = OpenAI(api_key=api_key, base_url=base_url)
+
+    def complete(self, budget: ModelBudget, prompt: str) -> str:
+        try:
+            resp = self._client.chat.completions.create(
+                model=budget.model_name,
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=budget.max_tokens,
+                temperature=budget.temperature,
+            )
+            return resp.choices[0].message.content or ""
+        except Exception as exc:
+            raise RuntimeError(
+                f"Qwen API error (model={budget.model_name}): {exc}"
+            ) from exc
 
 
-def get_client() -> MockQwenClient:
-    return _client
+# ── Factory ───────────────────────────────────────────────────────────────────
+
+_mock_client = MockQwenClient()
+
+
+def get_client() -> ModelClientProtocol:
+    """
+    Return the appropriate client for the current runtime configuration.
+    - QWEN_API_KEY set    → QwenClient  (real API calls)
+    - QWEN_API_KEY absent → MockQwenClient  (deterministic mock)
+    """
+    from aeonlogic.config.settings import get_settings
+
+    settings = get_settings()
+    if settings.is_real_qwen_mode:
+        return QwenClient(
+            api_key=settings.qwen_api_key,
+            base_url=settings.qwen_base_url,
+        )
+    return _mock_client
