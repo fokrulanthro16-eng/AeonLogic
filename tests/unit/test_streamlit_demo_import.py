@@ -1,4 +1,4 @@
-"""Phase 5A: Streamlit demo — import and pure-function unit tests.
+"""Phase 5A/5B: Streamlit demo — import and pure-function unit tests.
 
 No Streamlit runtime is needed.  All tests exercise the public API that
 lives outside `_render()` and is safe to call from pytest.
@@ -12,10 +12,13 @@ import pytest
 
 from aeonlogic.app.streamlit_demo import (
     PAGE_TITLE,
+    PAGE_SUBTITLE,
     DEFAULT_GOAL,
     _build_summary,
+    _build_timeline_stages,
     _collect_pipeline_events,
     _make_initial_state,
+    build_demo_summary_text,
 )
 from aeonlogic.domain.finding import Verdict
 from aeonlogic.domain.result import ExecutionStatus
@@ -247,3 +250,169 @@ def test_build_summary_memory_lessons_extracted() -> None:
     events = [{"node": "synthesize", "update": {"lessons_written": lessons}}]
     result = _build_summary(events)
     assert len(result["memory_lessons"]) == 2
+
+
+# ---------------------------------------------------------------------------
+# PAGE_SUBTITLE constant (Phase 5B)
+# ---------------------------------------------------------------------------
+
+def test_page_subtitle_constant_exists() -> None:
+    assert isinstance(PAGE_SUBTITLE, str) and len(PAGE_SUBTITLE) > 0
+
+
+def test_page_subtitle_contains_self_healing() -> None:
+    assert "Self-Healing" in PAGE_SUBTITLE or "self-healing" in PAGE_SUBTITLE.lower()
+
+
+def test_page_subtitle_contains_engine() -> None:
+    assert "Engine" in PAGE_SUBTITLE or "engine" in PAGE_SUBTITLE.lower()
+
+
+# ---------------------------------------------------------------------------
+# _build_timeline_stages (Phase 5B)
+# ---------------------------------------------------------------------------
+
+def test_build_timeline_stages_is_callable() -> None:
+    assert callable(_build_timeline_stages)
+
+
+def test_build_timeline_stages_empty_events_returns_list() -> None:
+    result = _build_timeline_stages([])
+    assert isinstance(result, list)
+
+
+def test_build_timeline_stages_empty_events_empty_list() -> None:
+    assert _build_timeline_stages([]) == []
+
+
+def test_build_timeline_stages_includes_dispatch() -> None:
+    task = SimpleNamespace(risk_level="high", description="auth")
+    events = [{"node": "dispatch", "update": {"active_task": task, "model_tier": "FAST"}}]
+    assert "DISPATCH" in _build_timeline_stages(events)
+
+
+def test_build_timeline_stages_includes_generate() -> None:
+    events = [{"node": "generate", "update": {"generation_attempt": 1}}]
+    assert "GENERATE" in _build_timeline_stages(events)
+
+
+def test_build_timeline_stages_includes_critic() -> None:
+    events = [{"node": "critique", "update": {"critic_verdict": None, "critic_findings": []}}]
+    assert "CRITIC" in _build_timeline_stages(events)
+
+
+def test_build_timeline_stages_includes_execute() -> None:
+    events = [{"node": "execute", "update": {"execution_status": None}}]
+    assert "EXECUTE" in _build_timeline_stages(events)
+
+
+def test_build_timeline_stages_includes_memory_from_synthesize() -> None:
+    events = [{"node": "synthesize", "update": {"lessons_written": []}}]
+    assert "MEMORY" in _build_timeline_stages(events)
+
+
+def test_build_timeline_stages_includes_final_when_memory_present() -> None:
+    events = [{"node": "synthesize", "update": {"lessons_written": []}}]
+    assert "FINAL" in _build_timeline_stages(events)
+
+
+def test_build_timeline_stages_repair_when_two_attempts() -> None:
+    events = [
+        {"node": "generate", "update": {"generation_attempt": 1}},
+        {"node": "generate", "update": {"generation_attempt": 2}},
+    ]
+    assert "REPAIR" in _build_timeline_stages(events)
+
+
+def test_build_timeline_stages_no_repair_for_single_attempt() -> None:
+    events = [{"node": "generate", "update": {"generation_attempt": 1}}]
+    assert "REPAIR" not in _build_timeline_stages(events)
+
+
+def test_build_timeline_stages_order_preserved() -> None:
+    events = [
+        {"node": "dispatch",  "update": {}},
+        {"node": "generate",  "update": {"generation_attempt": 1}},
+        {"node": "critique",  "update": {}},
+        {"node": "execute",   "update": {}},
+        {"node": "synthesize","update": {"lessons_written": []}},
+    ]
+    stages = _build_timeline_stages(events)
+    expected_order = ["DISPATCH", "GENERATE", "CRITIC", "EXECUTE", "MEMORY", "FINAL"]
+    indices = [stages.index(s) for s in expected_order if s in stages]
+    assert indices == sorted(indices)
+
+
+# ---------------------------------------------------------------------------
+# build_demo_summary_text (Phase 5B)
+# ---------------------------------------------------------------------------
+
+def _sample_summary() -> dict[str, Any]:
+    return {
+        "model_name":            "qwen-turbo",
+        "risk_level":            "HIGH",
+        "attempts":              2,
+        "repaired":              True,
+        "findings":              [],
+        "total_findings":        5,
+        "execution_blocked":     True,
+        "execution_duration_ms": 120,
+        "memory_lessons": [
+            {"type": "failure-lesson", "id": "a", "content": "null pointer"},
+            {"type": "success-lesson",  "id": "b", "content": "bcrypt"},
+        ],
+        "final_status": "SUCCESS",
+    }
+
+
+def test_build_demo_summary_text_is_callable() -> None:
+    assert callable(build_demo_summary_text)
+
+
+def test_build_demo_summary_text_returns_string() -> None:
+    result = build_demo_summary_text("ses-001", "MOCK_MODEL_MODE", _sample_summary())
+    assert isinstance(result, str)
+
+
+def test_build_demo_summary_text_contains_session_id() -> None:
+    result = build_demo_summary_text("ses-XYZ", "MOCK_MODEL_MODE", _sample_summary())
+    assert "ses-XYZ" in result
+
+
+def test_build_demo_summary_text_contains_runtime_mode() -> None:
+    result = build_demo_summary_text("sid", "MOCK_MODEL_MODE", _sample_summary())
+    assert "MOCK_MODEL_MODE" in result
+
+
+def test_build_demo_summary_text_contains_final_status() -> None:
+    result = build_demo_summary_text("sid", "MOCK", _sample_summary())
+    assert "SUCCESS" in result
+
+
+def test_build_demo_summary_text_contains_model_name() -> None:
+    result = build_demo_summary_text("sid", "MOCK", _sample_summary())
+    assert "qwen-turbo" in result
+
+
+def test_build_demo_summary_text_repair_note_when_repaired() -> None:
+    result = build_demo_summary_text("sid", "MOCK", _sample_summary())
+    assert "self-healing" in result.lower() or "repaired" in result.lower() or "repair" in result.lower()
+
+
+def test_build_demo_summary_text_no_repair_note_when_not_repaired() -> None:
+    s = _sample_summary()
+    s["repaired"]  = False
+    s["attempts"]  = 1
+    result = build_demo_summary_text("sid", "MOCK", s)
+    assert "first-pass" in result.lower() or "first pass" in result.lower()
+
+
+def test_build_demo_summary_text_lesson_counts() -> None:
+    result = build_demo_summary_text("sid", "MOCK", _sample_summary())
+    # 2 lessons written
+    assert "2" in result
+
+
+def test_build_demo_summary_text_risk_level() -> None:
+    result = build_demo_summary_text("sid", "MOCK", _sample_summary())
+    assert "HIGH" in result
