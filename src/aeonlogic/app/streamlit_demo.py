@@ -750,6 +750,211 @@ def build_artifact_preview_html(
 
 
 # ---------------------------------------------------------------------------
+# Memory Evidence helpers — Phase 6D (pure — no Streamlit dependency)
+# ---------------------------------------------------------------------------
+
+#: Message shown when memory evidence data cannot be collected.
+MEMORY_EVIDENCE_UNAVAILABLE = "Memory evidence unavailable in this run."
+
+
+def chroma_status_label(backend_name: str) -> str:
+    """Return the ChromaDB status label from the store class name.
+
+    Pure function — no Streamlit calls.
+
+    Examples
+    --------
+    >>> chroma_status_label("ChromaMemoryStore")
+    'ACTIVE'
+    >>> chroma_status_label("MockMemoryStore")
+    'FALLBACK'
+    """
+    if backend_name == "ChromaMemoryStore":
+        return "ACTIVE"
+    if backend_name == "MockMemoryStore":
+        return "FALLBACK"
+    return "UNAVAILABLE"
+
+
+def neo4j_status_label(uri_configured: bool, neo4j_available: bool) -> str:
+    """Return the Neo4j status label.
+
+    Pure function — no Streamlit calls.
+
+    Examples
+    --------
+    >>> neo4j_status_label(True, True)
+    'CONFIGURED'
+    >>> neo4j_status_label(False, False)
+    'NOT CONFIGURED'
+    >>> neo4j_status_label(True, False)
+    'UNAVAILABLE'
+    """
+    if not uri_configured:
+        return "NOT CONFIGURED"
+    if neo4j_available:
+        return "CONFIGURED"
+    return "UNAVAILABLE"
+
+
+def hybrid_status_label(chroma_status: str) -> str:
+    """Return the Hybrid memory status label.
+
+    Pure function — no Streamlit calls.
+    ACTIVE when ChromaDB is real; FALLBACK when MockMemoryStore or error.
+    """
+    return "ACTIVE" if chroma_status == "ACTIVE" else "FALLBACK"
+
+
+def build_memory_evidence(
+    summary: dict[str, Any],
+    final_state: dict[str, Any],
+    chroma_status: str = "UNKNOWN",
+    neo4j_status: str = "UNKNOWN",
+    hybrid_status: str = "UNKNOWN",
+) -> dict[str, Any]:
+    """Aggregate memory evidence from run data into a display-ready dict.
+
+    Pure function — no Streamlit calls.  Never raises; returns
+    ``{"available": False}`` on any unexpected error so the dashboard
+    degrades gracefully when the memory layer is absent.
+
+    Parameters
+    ----------
+    summary       : dict from _build_summary() — supplies lesson lists
+    final_state   : dict from graph.get_state() — supplies memory_context
+    chroma_status : label from chroma_status_label()
+    neo4j_status  : label from neo4j_status_label()
+    hybrid_status : label from hybrid_status_label()
+
+    Returns dict keys: available, chroma_status, neo4j_status,
+    hybrid_status, lessons_written, failure_lessons, success_lessons,
+    retrieved_count.
+    """
+    try:
+        lessons = (summary or {}).get("memory_lessons", []) or []
+        failure_count = sum(
+            1 for l in lessons if "failure" in str(l.get("type", "")).lower()
+        )
+        success_count = sum(
+            1 for l in lessons if "success" in str(l.get("type", "")).lower()
+        )
+        mem_ctx = (final_state or {}).get("memory_context", {}) or {}
+        if isinstance(mem_ctx, dict):
+            retrieved = mem_ctx.get("retrieved_lessons", [])
+            retrieved_count = len(retrieved) if isinstance(retrieved, list) else 0
+        else:
+            retrieved_count = 0
+
+        return {
+            "available":       True,
+            "chroma_status":   chroma_status,
+            "neo4j_status":    neo4j_status,
+            "hybrid_status":   hybrid_status,
+            "lessons_written": len(lessons),
+            "failure_lessons": failure_count,
+            "success_lessons": success_count,
+            "retrieved_count": retrieved_count,
+        }
+    except Exception:
+        return {"available": False}
+
+
+def build_memory_evidence_html(evidence: dict[str, Any]) -> str:
+    """Return the HTML block for the Memory Evidence panel.
+
+    Pure function — no Streamlit calls.
+    Shows MEMORY_EVIDENCE_UNAVAILABLE when evidence["available"] is False.
+    """
+    if not evidence.get("available", False):
+        return (
+            '<div class="card card-grey">'
+            f'<div style="color:#2a5060;font-size:0.82em;">'
+            f"{MEMORY_EVIDENCE_UNAVAILABLE}</div>"
+            "</div>"
+        )
+
+    chroma    = evidence.get("chroma_status",   "UNKNOWN")
+    neo4j     = evidence.get("neo4j_status",    "UNKNOWN")
+    hybrid    = evidence.get("hybrid_status",   "UNKNOWN")
+    lessons   = evidence.get("lessons_written", 0)
+    failures  = evidence.get("failure_lessons", 0)
+    successes = evidence.get("success_lessons", 0)
+    retrieved = evidence.get("retrieved_count", 0)
+
+    chroma_cls = (
+        "qs-value-real"     if chroma == "ACTIVE"   else
+        "qs-value-fallback" if chroma == "FALLBACK" else
+        "qs-value-warn"
+    )
+    neo4j_cls  = "qs-value-ok" if neo4j == "CONFIGURED" else "qs-value-warn"
+    hybrid_cls = "qs-value-real" if hybrid == "ACTIVE" else "qs-value-fallback"
+
+    def _row(label: str, value: str, val_cls: str = "") -> str:
+        return (
+            f'<div class="qs-row">'
+            f'<span class="qs-label">{label}</span>'
+            f'<span class="{val_cls}">{value}</span>'
+            f"</div>"
+        )
+
+    rows = [
+        _row("CHROMA",    chroma,         chroma_cls),
+        _row("HYBRID",    hybrid,         hybrid_cls),
+        _row("NEO4J",     neo4j,          neo4j_cls),
+        _row("WRITTEN",   str(lessons),   "qs-value-real" if lessons   else "qs-value-warn"),
+        _row("FAILURES",  str(failures),  "sev-high"      if failures  else "qs-value-ok"),
+        _row("SUCCESSES", str(successes), "qs-value-ok"   if successes else ""),
+        _row("RETRIEVED", str(retrieved), "qs-value-real" if retrieved else "qs-value-warn"),
+    ]
+
+    return (
+        '<div class="artifact-card card-cyan">'
+        '<div class="artifact-status-bar" style="color:#3a8aaa;letter-spacing:1px;">'
+        "MEMORY EVIDENCE</div>"
+        + "".join(rows)
+        + "</div>"
+    )
+
+
+def _probe_memory_backends() -> dict[str, str]:
+    """Detect available memory backends without creating connections.
+
+    Not a pure function — reads settings and attempts imports.
+    Used only from _render(); not exported or tested directly.
+    """
+    backend_name = "MockMemoryStore"
+    try:
+        import chromadb  # noqa: F401  # lazy — optional dependency
+        backend_name = "ChromaMemoryStore"
+    except ImportError:
+        pass
+
+    chroma = chroma_status_label(backend_name)
+
+    uri_configured   = False
+    neo4j_importable = False
+    try:
+        from aeonlogic.config.settings import get_settings as _gs_probe
+        _uri = str(getattr(_gs_probe(), "neo4j_uri", "") or "").strip()
+        if _uri:
+            uri_configured = True
+            try:
+                import neo4j  # noqa: F401  # lazy — optional dependency
+                neo4j_importable = True
+            except ImportError:
+                pass
+    except Exception:
+        pass
+
+    return {
+        "chroma_status": chroma,
+        "neo4j_status":  neo4j_status_label(uri_configured, neo4j_importable),
+        "hybrid_status": hybrid_status_label(chroma),
+    }
+
+
+# ---------------------------------------------------------------------------
 # Streamlit rendering — only called when run via `streamlit run`
 # ---------------------------------------------------------------------------
 
@@ -1057,6 +1262,12 @@ def _render() -> None:  # noqa: C901
             f'</div>',
             unsafe_allow_html=True,
         )
+
+    # ── Memory Evidence (Phase 6D) ────────────────────────────────────────
+    st.markdown('<div class="section-hdr">MEMORY EVIDENCE</div>', unsafe_allow_html=True)
+    _me_backends = _probe_memory_backends()
+    _me = build_memory_evidence(summary, final_state, **_me_backends)
+    st.markdown(build_memory_evidence_html(_me), unsafe_allow_html=True)
 
     # ── Artifact preview (Phase 6C) ───────────────────────────────────────
     st.markdown('<div class="section-hdr">ARTIFACT PREVIEW</div>', unsafe_allow_html=True)

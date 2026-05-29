@@ -23,6 +23,7 @@
 | 🖥 | **Streamlit Command Center dashboard** | Agent timeline · metrics · findings · memory writes · presentation mode · one-click demos |
 | 📄 | **Downloadable demo report** | Plain-text export with session ID, model, findings summary, memory lessons, final verdict |
 | 🔎 | **Artifact Preview panel** | Displays generated artifact text (truncated) and session ID after each run; graceful fallback when unavailable |
+| 🧩 | **Memory Evidence panel** | ChromaDB / Hybrid / Neo4j status · lesson counts (written, failure, success) · retrieved lesson count; never crashes on missing backend |
 
 ---
 
