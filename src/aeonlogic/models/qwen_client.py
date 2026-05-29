@@ -108,16 +108,18 @@ class QwenClient:
     """
 
     def __init__(self, api_key: str, base_url: str) -> None:
-        # Deferred import: openai is only imported when a real client is needed,
-        # so tests without an API key never trigger this code path.
+        # Deferred import: openai is only imported when a real client is needed.
         from openai import OpenAI  # noqa: PLC0415
 
         self._client = OpenAI(api_key=api_key, base_url=base_url)
 
     def complete(self, budget: ModelBudget, prompt: str) -> str:
+        from aeonlogic.config.settings import get_settings  # avoid circular at import time
+        settings = get_settings()
+        model = settings.qwen_model.strip() or budget.model_name
         try:
             resp = self._client.chat.completions.create(
-                model=budget.model_name,
+                model=model,
                 messages=[{"role": "user", "content": prompt}],
                 max_tokens=budget.max_tokens,
                 temperature=budget.temperature,
@@ -125,8 +127,56 @@ class QwenClient:
             return resp.choices[0].message.content or ""
         except Exception as exc:
             raise RuntimeError(
-                f"Qwen API error (model={budget.model_name}): {exc}"
+                f"Qwen API error (model={model}): {exc}"
             ) from exc
+
+
+# ── Resilient wrapper — auto-fallback to mock on any exception ────────────────
+
+class ResilientQwenClient:
+    """
+    Wraps a QwenClient and falls back to MockQwenClient on any exception.
+
+    This ensures the pipeline never crashes due to a transient API failure or
+    a misconfigured REAL mode. The module-level ``_active_mode`` is updated to
+    ``"fallback"`` whenever a real call fails.
+    """
+
+    def __init__(self, real: QwenClient) -> None:
+        self._real = real
+
+    def complete(self, budget: ModelBudget, prompt: str) -> str:
+        try:
+            return self._real.complete(budget, prompt)
+        except Exception:
+            _set_active_mode("fallback")
+            return _mock_client.complete(budget, prompt)
+
+
+# ── Active mode tracking ──────────────────────────────────────────────────────
+# Reflects what actually happened at runtime (may differ from config when
+# AEONLOGIC_MODE=real but a call fails and falls back).
+
+_active_mode: str = "mock"  # "mock" | "real" | "fallback"
+
+
+def _set_active_mode(mode: str) -> None:
+    global _active_mode
+    _active_mode = mode
+
+
+def get_client_mode_label() -> str:
+    """Return the actual runtime mode label after the last get_client() call.
+
+    Returns one of: REAL_MODEL_MODE | MOCK_MODEL_MODE | FALLBACK_MODE.
+    Use this (rather than settings.client_mode_label) in UI code that should
+    reflect what actually happened at runtime.
+    """
+    if _active_mode == "real":
+        return "REAL_MODEL_MODE"
+    if _active_mode == "fallback":
+        return "FALLBACK_MODE"
+    return "MOCK_MODEL_MODE"
 
 
 # ── Factory ───────────────────────────────────────────────────────────────────
@@ -137,15 +187,40 @@ _mock_client = MockQwenClient()
 def get_client() -> ModelClientProtocol:
     """
     Return the appropriate client for the current runtime configuration.
-    - QWEN_API_KEY set    → QwenClient  (real API calls)
-    - QWEN_API_KEY absent → MockQwenClient  (deterministic mock)
+
+    Decision table:
+    ┌──────────────────┬───────────────┬──────────────────────┬────────────────┐
+    │  aeonlogic_mode  │  qwen_api_key │  result              │  _active_mode  │
+    ├──────────────────┼───────────────┼──────────────────────┼────────────────┤
+    │  mock            │  any          │  MockQwenClient      │  mock          │
+    │  auto / real     │  absent       │  MockQwenClient      │  mock/fallback │
+    │  auto / real     │  present      │  ResilientQwenClient │  real          │
+    │  auto / real     │  present      │  MockQwenClient*     │  fallback      │
+    └──────────────────┴───────────────┴──────────────────────┴────────────────┘
+    * When openai package is missing or QwenClient init fails.
     """
     from aeonlogic.config.settings import get_settings
 
     settings = get_settings()
-    if settings.is_real_qwen_mode:
-        return QwenClient(
+    mode = settings.aeonlogic_mode.strip().lower()
+
+    if mode == "mock":
+        _set_active_mode("mock")
+        return _mock_client
+
+    # auto or real: use real client if key is present
+    if not settings.qwen_api_key.strip():
+        # real explicitly requested but key absent → fallback indicator
+        _set_active_mode("fallback" if mode == "real" else "mock")
+        return _mock_client
+
+    try:
+        real = QwenClient(
             api_key=settings.qwen_api_key,
             base_url=settings.qwen_base_url,
         )
-    return _mock_client
+        _set_active_mode("real")
+        return ResilientQwenClient(real)
+    except Exception:
+        _set_active_mode("fallback")
+        return _mock_client

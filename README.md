@@ -15,7 +15,7 @@
 |---|---|---|
 | ⚡ | **Multi-agent pipeline** | Dispatcher · Generator · Critic · Executor · Memory Synthesizer |
 | 🔁 | **Recursive self-healing repair loop** | Critic findings injected back into Generator; deterministic attempt-1-fail / attempt-2-repair |
-| 🤖 | **Qwen mock fallback** | Full CI without a real DashScope API key; mock auto-selected when key absent |
+| 🤖 | **Qwen mock / real / fallback mode** | `AEONLOGIC_MODE=auto\|real\|mock` · `REAL_MODEL_MODE`, `MOCK_MODEL_MODE`, `FALLBACK_MODE` · no API key required for mock/demo |
 | 🧠 | **ChromaDB persistent semantic memory** | Lessons written as embeddings; retrieved via semantic similarity |
 | 🕸 | **Neo4j knowledge graph interface** | Failure/success nodes and artifact relationships; safe no-op when unavailable |
 | 🔀 | **Hybrid memory orchestration** | Chroma authoritative + Neo4j best-effort; full fallback chain (Chroma → Mock, Neo4j → silent no-op) |
@@ -77,6 +77,7 @@ User / CLI / Dashboard
 | Python ≥ 3.11 | 3.12+ recommended |
 | Git | — |
 | (Optional) DashScope API key | Only needed for real Qwen inference; mock mode works without it |
+| (Optional) `AEONLOGIC_MODE=real` | Set in `.env` alongside `QWEN_API_KEY` to enable real cloud mode |
 | (Optional) Neo4j ≥ 5.x | Only needed for graph memory; safe no-op fallback if absent |
 
 ### 1 — Clone and install

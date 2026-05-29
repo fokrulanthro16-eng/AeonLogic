@@ -152,8 +152,9 @@ summary { color: #3a8aaa !important; font-size: 0.83em; letter-spacing: 1px; }
     letter-spacing: 1px;
     font-weight: bold;
 }
-.badge-mock { background: #141e08; border: 1px solid #3a7010; color: #7ab830; }
-.badge-real { background: #081e10; border: 1px solid #10aa38; color: #30ee60; }
+.badge-mock     { background: #141e08; border: 1px solid #3a7010; color: #7ab830; }
+.badge-real     { background: #081e10; border: 1px solid #10aa38; color: #30ee60; }
+.badge-fallback { background: #1a1008; border: 1px solid #aa6600; color: #dd8800; }
 
 /* ── Agent timeline ── */
 .timeline-wrap {
@@ -342,8 +343,6 @@ def _collect_pipeline_events(goal: str) -> dict[str, Any]:
     from aeonlogic.graph.builder import build_graph
 
     on_startup()
-    settings = get_settings()
-    runtime_mode = settings.client_mode_label
     session_id = new_ulid()
 
     graph = build_graph()
@@ -358,9 +357,13 @@ def _collect_pipeline_events(goal: str) -> dict[str, Any]:
     final_state = dict(graph.get_state(config).values)
     on_shutdown()
 
+    # Use the actual post-run mode (may be FALLBACK_MODE if a real call failed)
+    from aeonlogic.models.qwen_client import get_client_mode_label
+    actual_runtime_mode = get_client_mode_label()
+
     return {
         "session_id":   session_id,
-        "runtime_mode": runtime_mode,
+        "runtime_mode": actual_runtime_mode,
         "events":       events,
         "final_state":  final_state,
     }
@@ -612,8 +615,12 @@ def _render() -> None:  # noqa: C901
 
     # ── Mode badge ────────────────────────────────────────────────────────
     from aeonlogic.config.settings import get_settings
-    runtime_mode = get_settings().client_mode_label
-    badge_cls    = "badge-real" if runtime_mode == "REAL_QWEN_MODE" else "badge-mock"
+    runtime_mode = get_settings().runtime_mode_label
+    badge_cls = (
+        "badge-real"     if runtime_mode == "REAL_MODEL_MODE"  else
+        "badge-fallback" if runtime_mode == "FALLBACK_MODE"    else
+        "badge-mock"
+    )
     st.markdown(
         f'<span class="mode-badge {badge_cls}">● &nbsp;{runtime_mode}</span>',
         unsafe_allow_html=True,
@@ -791,15 +798,19 @@ def _render() -> None:  # noqa: C901
     # ── Memory backends (hidden in presentation mode) ─────────────────────
     if not presentation_mode:
         st.markdown('<div class="section-hdr">MEMORY BACKENDS</div>', unsafe_allow_html=True)
-        chroma_cls = "mem-chip mem-chip-ok"   if lessons else "mem-chip mem-chip-mock"
-        chroma_txt = "● CHROMADB  ACTIVE"     if lessons else "● CHROMADB  MOCK FALLBACK"
-        llm_cls    = "mem-chip mem-chip-ok"   if runtime_mode == "REAL_QWEN_MODE" \
-                     else "mem-chip mem-chip-mock"
+        chroma_cls   = "mem-chip mem-chip-ok"   if lessons else "mem-chip mem-chip-mock"
+        chroma_txt   = "● CHROMADB  ACTIVE"     if lessons else "● CHROMADB  MOCK FALLBACK"
+        actual_mode  = run_data.get("runtime_mode", runtime_mode)
+        llm_cls = (
+            "mem-chip mem-chip-ok"   if actual_mode == "REAL_MODEL_MODE"  else
+            "mem-chip mem-chip-off"  if actual_mode == "FALLBACK_MODE"    else
+            "mem-chip mem-chip-mock"
+        )
         st.markdown(
             f'<div class="mem-row">'
             f'<span class="{chroma_cls}">{chroma_txt}</span>'
             f'<span class="mem-chip mem-chip-off">○ NEO4J  NOT CONFIGURED</span>'
-            f'<span class="{llm_cls}">● LLM  {runtime_mode}</span>'
+            f'<span class="{llm_cls}">● LLM  {actual_mode}</span>'
             f'</div>',
             unsafe_allow_html=True,
         )
