@@ -25,6 +25,11 @@ class Settings(BaseSettings):
     qwen_fast_model: str = "qwen-turbo"
     qwen_deep_model: str = "qwen-plus"
 
+    # ── Neo4j Knowledge Graph ─────────────────────────────────────────────────
+    neo4j_uri: str = ""
+    neo4j_username: str = "neo4j"
+    neo4j_password: str = ""
+
     # ── Application ───────────────────────────────────────────────────────────
     app_env: str = "development"
     log_level: str = "WARNING"
