@@ -1,7 +1,7 @@
 # AeonLogic — Engine Status
 
 **Last updated:** 2026-05-29
-**Current phase:** 4F — Final engine hardening and documentation
+**Current phase:** 5D — GitHub and portfolio showcase polish
 
 ---
 
@@ -18,6 +18,10 @@
 | 4D | Neo4j knowledge graph interface: `write_failure_lesson`, `write_success_lesson`, `write_artifact_relationship`, `health_check` | Done |
 | 4E | Hybrid memory orchestration: Chroma authoritative + Neo4j best-effort, full fallback chain | Done |
 | 4F | Final engine hardening and documentation | Done |
+| 5A | Streamlit Command Center dashboard: task input, pipeline execution, live results display | Done |
+| 5B | Streamlit UI polish: hero header, agent timeline, verdict card, memory backend panel, export block | Done |
+| 5C | Demo experience pack: quick-task presets, one-click security demo, download button, presentation mode | Done |
+| 5D | GitHub and portfolio showcase polish: README hero, feature list, SHOWCASE.md, docs tests | Done |
 
 ---
 

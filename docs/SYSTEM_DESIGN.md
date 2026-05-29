@@ -145,7 +145,19 @@ Before each Generator call, the Memory Synthesizer's retrieval path injects:
 
 ---
 
-## 6. Key design decisions
+## 6. Presentation layer (`src/aeonlogic/app/`)
+
+| Module | Purpose |
+|---|---|
+| `cli.py` | Typer + Rich terminal UI; streams all agent node updates in real time; identical pipeline path to the Streamlit dashboard |
+| `streamlit_demo.py` | Streamlit Command Center dashboard; agent timeline; metric cards; critic findings; memory writes; presentation mode toggle; downloadable demo report |
+| `lifecycle.py` | `on_startup` / `on_shutdown` hooks shared by both CLI and dashboard |
+
+The presentation layer is a pure consumer of the engine — it calls `build_graph()` and `graph.stream()` and renders whatever comes back. No engine logic lives in `cli.py` or `streamlit_demo.py`.
+
+---
+
+## 7. Key design decisions
 
 | Decision | Rationale |
 |---|---|

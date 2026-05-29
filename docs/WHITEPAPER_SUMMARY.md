@@ -109,6 +109,20 @@ Each session is a small step. The graph that emerges over thousands of sessions 
 
 ---
 
+## 8. Phase 5 — Streamlit Command Center
+
+Phase 5 adds a presentation layer without touching any engine logic:
+
+- **Streamlit dashboard** (`app/streamlit_demo.py`) streams the same `build_graph()` + `graph.stream()` path as the CLI, rendering results as a dark-themed command-center interface.
+- **Agent timeline** (`DISPATCH → GENERATE → CRITIC → EXECUTE → REPAIR → MEMORY → FINAL`) visualises which stages were activated and whether a self-healing repair cycle occurred.
+- **One-click demo presets** let evaluators run the Security Auth, Input Validation, or Rate Limiting scenarios with a single button press.
+- **Presentation mode** hides technical telemetry sections, leaving only the timeline, findings, memory writes, and verdict — optimised for screenshots and live demo audiences.
+- **Downloadable demo report** generates a plain-text summary with session metadata, repair status, findings count, memory lessons, and final verdict — shareable directly from the UI.
+
+The engine's recursive self-healing loop, hybrid memory, and Qwen mock fallback all operate identically whether invoked from the CLI or the Streamlit dashboard.
+
+---
+
 ## 7. Phase 4 implementation note
 
 As of Phase 4F, the memory substrate described in sections 2–5 is fully implemented:
