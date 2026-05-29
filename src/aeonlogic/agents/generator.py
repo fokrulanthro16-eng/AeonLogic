@@ -6,6 +6,7 @@ from aeonlogic.agents.base import BaseAgent
 from aeonlogic.domain.artifact import Artifact, ArtifactType
 from aeonlogic.domain.task import CycleStatus
 from aeonlogic.graph.state import AeonState
+from aeonlogic.memory.retrieval import summarize_lessons
 from aeonlogic.models.budgets import get_budget
 from aeonlogic.models.prompts import generate_prompt
 from aeonlogic.models.qwen_client import get_client
@@ -28,13 +29,18 @@ class GeneratorAgent(BaseAgent):
             for f in state.get("critic_findings", [])  # type: ignore[call-overload]
         )
 
-        content = client.complete(
-            budget=budget,
-            prompt=generate_prompt(
-                task_description=active_task.description,
-                findings=findings_str,
-            ),
+        memory_context = state.get("memory_context") or {}  # type: ignore[call-overload]
+        lessons = memory_context.get("lessons", [])
+        memory_hint = summarize_lessons(lessons)
+
+        prompt = generate_prompt(
+            task_description=active_task.description,
+            findings=findings_str,
         )
+        if memory_hint:
+            prompt = f"{memory_hint}\n\n{prompt}"
+
+        content = client.complete(budget=budget, prompt=prompt)
 
         artifact = Artifact(
             task_id=active_task.id,
@@ -51,5 +57,6 @@ class GeneratorAgent(BaseAgent):
             "generator_trace": (
                 f"Attempt {attempt}: generated artifact {artifact.id[:8]}...  "
                 f"({len(content)} chars, hash {artifact.content_hash[:8]}...)"
+                + (f"  [memory: {len(lessons)} lesson(s)]" if lessons else "")
             ),
         }
