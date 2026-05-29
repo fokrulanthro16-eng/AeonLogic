@@ -299,6 +299,19 @@ summary { color: #3a8aaa !important; font-size: 0.83em; letter-spacing: 1px; }
 .qt-desc { font-size: 0.68em; color: #1e4a60; letter-spacing: 1px; margin-top: 2px; }
 .qt-section { font-size: 0.70em; letter-spacing: 2px; color: #1e5070; margin-bottom: 8px; }
 
+/* ── Artifact preview panel ── */
+.artifact-card {
+    background: #060c18;
+    border: 1px solid #0e2840;
+    border-radius: 6px;
+    padding: 10px 14px;
+    margin-bottom: 10px;
+}
+.artifact-approved { border-left: 3px solid #00ee88; }
+.artifact-rejected  { border-left: 3px solid #ee2255; }
+.artifact-pending   { border-left: 3px solid #ffaa00; }
+.artifact-status-bar { font-size: 0.80em; letter-spacing: 1px; margin-bottom: 4px; }
+
 /* ── Qwen Cloud status panel (sidebar) ── */
 .qs-row {
     display: flex;
@@ -635,6 +648,108 @@ def build_qwen_cloud_status(settings: Any) -> dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
+# Artifact Preview helpers — Phase 6C (pure — no Streamlit dependency)
+# ---------------------------------------------------------------------------
+
+#: Message shown when no artifact text is available for preview.
+ARTIFACT_PREVIEW_UNAVAILABLE = "Artifact preview unavailable in this run."
+
+#: Maximum characters shown in the artifact preview panel before truncation.
+ARTIFACT_PREVIEW_MAX_CHARS = 800
+
+
+def extract_artifact_preview(final_state: dict[str, Any]) -> dict[str, Any]:
+    """Extract artifact preview data from the final pipeline state.
+
+    Pure function — no Streamlit calls.
+    Returns dict with keys:
+      artifact_text : str | None  — artifact content or None if unavailable
+      session_id    : str | None  — session identifier or None
+    """
+    artifact = final_state.get("candidate_artifact")
+    artifact_text: str | None = None
+
+    if artifact is not None:
+        text = getattr(artifact, "content", None)
+        if text and isinstance(text, str):
+            artifact_text = text
+        elif isinstance(artifact, str) and artifact:
+            artifact_text = artifact
+
+    raw_sid = final_state.get("session_id")
+    session_id = str(raw_sid) if raw_sid else None
+    return {"artifact_text": artifact_text, "session_id": session_id}
+
+
+def artifact_status_label(final_status: str) -> str:
+    """Return a short display label for the artifact's run outcome.
+
+    Pure function — no Streamlit calls.
+
+    Examples
+    --------
+    >>> artifact_status_label("SUCCESS")
+    'APPROVED'
+    >>> artifact_status_label("FAILED")
+    'REJECTED'
+    >>> artifact_status_label("RUNNING")
+    'UNKNOWN'
+    """
+    fs = final_status.upper()
+    if "SUCCESS" in fs:
+        return "APPROVED"
+    if "FAIL" in fs or "ERROR" in fs:
+        return "REJECTED"
+    return "UNKNOWN"
+
+
+def build_artifact_preview_html(
+    artifact_text: str | None,
+    session_id: str | None,
+) -> str:
+    """Return the HTML block for the Artifact Preview panel.
+
+    Pure function — no Streamlit calls.
+    Shows artifact content (truncated) when present; fallback message otherwise.
+    Appends a short session ID footer when session_id is provided.
+    """
+    if artifact_text:
+        snippet = (
+            artifact_text[:ARTIFACT_PREVIEW_MAX_CHARS]
+            + ("…" if len(artifact_text) > ARTIFACT_PREVIEW_MAX_CHARS else "")
+        )
+        body_html = (
+            '<pre style="font-size:0.78em;color:#6090b0;white-space:pre-wrap;'
+            'word-break:break-word;margin:6px 0 0 0;line-height:1.5;">'
+            f"{snippet}</pre>"
+        )
+        border_cls = "artifact-approved"
+    else:
+        body_html = (
+            f'<div style="color:#2a5060;font-size:0.82em;margin-top:4px;">'
+            f"{ARTIFACT_PREVIEW_UNAVAILABLE}</div>"
+        )
+        border_cls = "artifact-pending"
+
+    sid_html = ""
+    if session_id:
+        short = session_id[:16]
+        sid_html = (
+            f'<div style="font-size:0.68em;color:#1a4060;margin-top:8px;'
+            f'letter-spacing:1px;">SESSION · {short}</div>'
+        )
+
+    return (
+        f'<div class="artifact-card {border_cls}">'
+        f'<div class="artifact-status-bar" style="color:#3a8aaa;letter-spacing:1px;">'
+        f"ARTIFACT PREVIEW</div>"
+        f"{body_html}"
+        f"{sid_html}"
+        f"</div>"
+    )
+
+
+# ---------------------------------------------------------------------------
 # Streamlit rendering — only called when run via `streamlit run`
 # ---------------------------------------------------------------------------
 
@@ -942,6 +1057,14 @@ def _render() -> None:  # noqa: C901
             f'</div>',
             unsafe_allow_html=True,
         )
+
+    # ── Artifact preview (Phase 6C) ───────────────────────────────────────
+    st.markdown('<div class="section-hdr">ARTIFACT PREVIEW</div>', unsafe_allow_html=True)
+    _ap = extract_artifact_preview(final_state)
+    st.markdown(
+        build_artifact_preview_html(_ap["artifact_text"], _ap["session_id"]),
+        unsafe_allow_html=True,
+    )
 
     st.markdown("<br>", unsafe_allow_html=True)
     st.divider()

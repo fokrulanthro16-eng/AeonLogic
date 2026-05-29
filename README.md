@@ -22,6 +22,7 @@
 | 🔀 | **Hybrid memory orchestration** | Chroma authoritative + Neo4j best-effort; full fallback chain (Chroma → Mock, Neo4j → silent no-op) |
 | 🖥 | **Streamlit Command Center dashboard** | Agent timeline · metrics · findings · memory writes · presentation mode · one-click demos |
 | 📄 | **Downloadable demo report** | Plain-text export with session ID, model, findings summary, memory lessons, final verdict |
+| 🔎 | **Artifact Preview panel** | Displays generated artifact text (truncated) and session ID after each run; graceful fallback when unavailable |
 
 ---
 
