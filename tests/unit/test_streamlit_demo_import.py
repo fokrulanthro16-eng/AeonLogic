@@ -1,4 +1,4 @@
-"""Phase 5A/5B: Streamlit demo — import and pure-function unit tests.
+"""Phase 5A/5B/5C: Streamlit demo — import and pure-function unit tests.
 
 No Streamlit runtime is needed.  All tests exercise the public API that
 lives outside `_render()` and is safe to call from pytest.
@@ -14,11 +14,13 @@ from aeonlogic.app.streamlit_demo import (
     PAGE_TITLE,
     PAGE_SUBTITLE,
     DEFAULT_GOAL,
+    DEMO_TASKS,
     _build_summary,
     _build_timeline_stages,
     _collect_pipeline_events,
     _make_initial_state,
     build_demo_summary_text,
+    format_download_filename,
 )
 from aeonlogic.domain.finding import Verdict
 from aeonlogic.domain.result import ExecutionStatus
@@ -416,3 +418,101 @@ def test_build_demo_summary_text_lesson_counts() -> None:
 def test_build_demo_summary_text_risk_level() -> None:
     result = build_demo_summary_text("sid", "MOCK", _sample_summary())
     assert "HIGH" in result
+
+
+# ---------------------------------------------------------------------------
+# DEMO_TASKS constant (Phase 5C)
+# ---------------------------------------------------------------------------
+
+def test_demo_tasks_is_list() -> None:
+    assert isinstance(DEMO_TASKS, list)
+
+
+def test_demo_tasks_has_three_items() -> None:
+    assert len(DEMO_TASKS) == 3
+
+
+def test_demo_tasks_each_has_required_keys() -> None:
+    for task in DEMO_TASKS:
+        assert "label"       in task, f"Missing 'label' in {task}"
+        assert "goal"        in task, f"Missing 'goal' in {task}"
+        assert "description" in task, f"Missing 'description' in {task}"
+
+
+def test_demo_tasks_labels_are_non_empty() -> None:
+    for task in DEMO_TASKS:
+        assert len(task["label"].strip()) > 0
+
+
+def test_demo_tasks_goals_are_non_empty() -> None:
+    for task in DEMO_TASKS:
+        assert len(task["goal"].strip()) > 0
+
+
+def test_demo_tasks_security_auth_goal_matches_default() -> None:
+    security_task = DEMO_TASKS[0]
+    assert security_task["goal"] == DEFAULT_GOAL
+
+
+def test_demo_tasks_input_validation_goal_contains_validation() -> None:
+    val_task = DEMO_TASKS[1]
+    assert "validation" in val_task["goal"].lower() or "sanitiz" in val_task["goal"].lower()
+
+
+def test_demo_tasks_rate_limiting_goal_contains_rate() -> None:
+    rate_task = DEMO_TASKS[2]
+    assert "rate" in rate_task["goal"].lower()
+
+
+def test_demo_tasks_all_goals_are_distinct() -> None:
+    goals = [t["goal"] for t in DEMO_TASKS]
+    assert len(set(goals)) == len(goals), "Duplicate goals in DEMO_TASKS"
+
+
+# ---------------------------------------------------------------------------
+# format_download_filename (Phase 5C)
+# ---------------------------------------------------------------------------
+
+def test_format_download_filename_is_callable() -> None:
+    assert callable(format_download_filename)
+
+
+def test_format_download_filename_returns_string() -> None:
+    result = format_download_filename("ABCDEF12", "SUCCESS")
+    assert isinstance(result, str)
+
+
+def test_format_download_filename_ends_with_txt() -> None:
+    assert format_download_filename("sid", "SUCCESS").endswith(".txt")
+
+
+def test_format_download_filename_success_slug() -> None:
+    name = format_download_filename("abcdef12", "SUCCESS")
+    assert "success" in name
+
+
+def test_format_download_filename_failed_slug_for_non_success() -> None:
+    name = format_download_filename("abcdef12", "FAILED")
+    assert "failed" in name
+
+
+def test_format_download_filename_unknown_status_is_failed() -> None:
+    name = format_download_filename("abcdef12", "UNKNOWN")
+    assert "failed" in name
+
+
+def test_format_download_filename_contains_session_prefix() -> None:
+    name = format_download_filename("ABCDEF12XYZ", "SUCCESS")
+    # First 8 chars of session_id (lowercased) appear in filename
+    assert "abcdef12" in name
+
+
+def test_format_download_filename_short_session_id() -> None:
+    name = format_download_filename("AB", "SUCCESS")
+    assert "ab" in name
+    assert name.endswith(".txt")
+
+
+def test_format_download_filename_starts_with_aeonlogic() -> None:
+    name = format_download_filename("sess", "SUCCESS")
+    assert name.startswith("aeonlogic_demo_")

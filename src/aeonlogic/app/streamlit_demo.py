@@ -1,5 +1,5 @@
 """
-AeonLogic Command Center — Streamlit dashboard (Phase 5B polish).
+AeonLogic Command Center — Streamlit dashboard (Phase 5C demo experience).
 
 Structure
 ---------
@@ -33,6 +33,25 @@ _NODE_TO_STAGE: dict[str, str] = {
     "execute":   "EXECUTE",
     "synthesize": "MEMORY",
 }
+
+# One-click preset demo tasks (Phase 5C)
+DEMO_TASKS: list[dict[str, str]] = [
+    {
+        "label":       "🔐 Security Auth Demo",
+        "goal":        "Build a secure API authentication module",
+        "description": "JWT · bcrypt · rate limiting · input validation",
+    },
+    {
+        "label":       "🛡 Input Validation Demo",
+        "goal":        "Build a robust input validation and sanitization layer for a REST API",
+        "description": "XSS prevention · SQL injection · schema enforcement",
+    },
+    {
+        "label":       "⏱ Rate Limiting Demo",
+        "goal":        "Implement a distributed rate limiting system for a high-traffic API",
+        "description": "Token bucket · per-user quotas · Redis backend",
+    },
+]
 
 # ---------------------------------------------------------------------------
 # CSS — dark futuristic command-center theme (Phase 5B)
@@ -239,6 +258,45 @@ summary { color: #3a8aaa !important; font-size: 0.83em; letter-spacing: 1px; }
     overflow-x: auto;
     line-height: 1.5;
 }
+
+/* ── Secondary buttons (quick-task presets) ── */
+[data-testid="baseButton-secondary"] {
+    background: #070f1c !important;
+    color: #2a6a8a !important;
+    border: 1px solid #0e2840 !important;
+    border-radius: 4px !important;
+    font-size: 0.82em !important;
+    letter-spacing: 1px !important;
+    transition: border-color 0.15s, color 0.15s !important;
+}
+[data-testid="baseButton-secondary"]:hover {
+    border-color: #00ccff44 !important;
+    color: #4ab8d8 !important;
+    background: #091828 !important;
+}
+
+/* ── Download button ── */
+[data-testid="stDownloadButton"] button {
+    background: #071a10 !important;
+    color: #00cc66 !important;
+    border: 1px solid #00cc6644 !important;
+    border-radius: 4px !important;
+    font-size: 0.82em !important;
+    letter-spacing: 1px !important;
+    transition: box-shadow 0.2s ease !important;
+}
+[data-testid="stDownloadButton"] button:hover {
+    box-shadow: 0 0 12px #00cc6622 !important;
+    border-color: #00cc6688 !important;
+}
+
+/* ── Sidebar ── */
+[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] p { color: #2a6a8a !important; }
+[data-testid="stSidebar"] label { color: #3a8aaa !important; }
+
+/* ── Quick-task description text ── */
+.qt-desc { font-size: 0.68em; color: #1e4a60; letter-spacing: 1px; margin-top: 2px; }
+.qt-section { font-size: 0.70em; letter-spacing: 2px; color: #1e5070; margin-bottom: 8px; }
 </style>
 """
 
@@ -453,6 +511,23 @@ def build_demo_summary_text(
     return "\n".join(lines)
 
 
+def format_download_filename(session_id: str, final_status: str) -> str:
+    """Return a safe .txt filename for the downloadable demo report.
+
+    Pure function — no Streamlit calls.
+
+    Examples
+    --------
+    >>> format_download_filename("ABC12345XYZ", "SUCCESS")
+    'aeonlogic_demo_success_abc12345.txt'
+    >>> format_download_filename("ID", "FAILED")
+    'aeonlogic_demo_failed_id.txt'
+    """
+    slug  = "success" if "SUCCESS" in final_status.upper() else "failed"
+    short = (session_id[:8] if len(session_id) >= 8 else session_id).lower()
+    return f"aeonlogic_demo_{slug}_{short}.txt"
+
+
 # ---------------------------------------------------------------------------
 # Streamlit rendering helpers (called only from _render)
 # ---------------------------------------------------------------------------
@@ -506,6 +581,27 @@ def _render() -> None:  # noqa: C901
     )
     st.markdown(_CSS, unsafe_allow_html=True)
 
+    # ── Sidebar: display options ──────────────────────────────────────────
+    with st.sidebar:
+        st.markdown(
+            '<div style="color:#3a8aaa;font-size:0.78em;letter-spacing:2px;'
+            'text-transform:uppercase;border-bottom:1px solid #0e2840;'
+            'padding-bottom:6px;margin-bottom:12px;">⚙ DISPLAY OPTIONS</div>',
+            unsafe_allow_html=True,
+        )
+        presentation_mode = st.toggle(
+            "Presentation Mode",
+            value=False,
+            help="Hides telemetry and technical sections for clean screenshots.",
+        )
+        if presentation_mode:
+            st.markdown(
+                '<div style="font-size:0.70em;color:#1e5070;margin-top:4px;">'
+                'Technical sections hidden.<br>Timeline · Findings · Verdict visible.'
+                '</div>',
+                unsafe_allow_html=True,
+            )
+
     # ── Hero ─────────────────────────────────────────────────────────────
     st.markdown(
         f'<div class="hero-logo">⚡ &nbsp; AEONLOGIC &nbsp; COMMAND CENTER</div>'
@@ -514,7 +610,7 @@ def _render() -> None:  # noqa: C901
         unsafe_allow_html=True,
     )
 
-    # ── Mode badge + session info ─────────────────────────────────────────
+    # ── Mode badge ────────────────────────────────────────────────────────
     from aeonlogic.config.settings import get_settings
     runtime_mode = get_settings().client_mode_label
     badge_cls    = "badge-real" if runtime_mode == "REAL_QWEN_MODE" else "badge-mock"
@@ -524,15 +620,55 @@ def _render() -> None:  # noqa: C901
     )
     st.markdown("<br>", unsafe_allow_html=True)
 
+    # ── Quick-task preset buttons (Phase 5C) ──────────────────────────────
+    st.markdown(
+        '<div class="qt-section">QUICK TASKS</div>',
+        unsafe_allow_html=True,
+    )
+    if "current_goal" not in st.session_state:
+        st.session_state["current_goal"] = DEFAULT_GOAL
+
+    qt_cols = st.columns(len(DEMO_TASKS))
+    for i, (col, task) in enumerate(zip(qt_cols, DEMO_TASKS)):
+        with col:
+            if st.button(task["label"], use_container_width=True,
+                         key=f"qt_{i}", type="secondary"):
+                st.session_state["current_goal"] = task["goal"]
+                st.rerun()
+            st.markdown(
+                f'<div class="qt-desc">{task["description"]}</div>',
+                unsafe_allow_html=True,
+            )
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
     # ── Mission input ─────────────────────────────────────────────────────
     goal = st.text_input(
         "MISSION OBJECTIVE",
-        value=DEFAULT_GOAL,
+        value=st.session_state["current_goal"],
         placeholder="Describe the task in plain language …",
     )
-    run_clicked = st.button("▶  EXECUTE PIPELINE", type="primary", use_container_width=True)
+    st.session_state["current_goal"] = goal  # track manual edits
 
-    if run_clicked and goal.strip():
+    # ── Action buttons ────────────────────────────────────────────────────
+    btn_left, btn_right = st.columns([3, 1])
+    with btn_left:
+        run_clicked = st.button(
+            "▶  EXECUTE PIPELINE", type="primary", use_container_width=True,
+        )
+    with btn_right:
+        security_demo = st.button(
+            "⚡ RUN SECURITY DEMO", type="secondary", use_container_width=True,
+            help="One-click: fills and runs the standard security auth task.",
+        )
+
+    # ── Trigger execution ─────────────────────────────────────────────────
+    if security_demo:
+        st.session_state["current_goal"] = DEFAULT_GOAL
+        with st.spinner("⚡  Running Security Demo …"):
+            run_data = _collect_pipeline_events(DEFAULT_GOAL)
+        st.session_state["aeon_result"] = run_data
+    elif run_clicked and goal.strip():
         with st.spinner("⟳  Recursive pipeline executing …"):
             run_data = _collect_pipeline_events(goal.strip())
         st.session_state["aeon_result"] = run_data
@@ -543,16 +679,16 @@ def _render() -> None:  # noqa: C901
         st.markdown(
             '<div class="card card-cyan" '
             'style="text-align:center;color:#1e5070;margin-top:24px;">'
-            'Enter a mission objective and press EXECUTE PIPELINE to begin.'
+            'Select a quick task or enter a mission objective, then press EXECUTE PIPELINE.'
             '</div>',
             unsafe_allow_html=True,
         )
         return
 
-    events      = run_data["events"]
-    summary     = _build_summary(events)
+    events     = run_data["events"]
+    summary    = _build_summary(events)
 
-    # Authoritative final status from complete state
+    # Authoritative final status from complete graph state
     final_state = run_data.get("final_state", {})
     raw_fs = final_state.get("status")
     if raw_fs is not None:
@@ -569,36 +705,34 @@ def _render() -> None:  # noqa: C901
     st.divider()
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # ── Top metrics row ───────────────────────────────────────────────────
-    st.markdown('<div class="section-hdr">RUN TELEMETRY</div>', unsafe_allow_html=True)
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric("RUNTIME MODE", run_data.get("runtime_mode", "—"))
-    c2.metric("MODEL",        summary["model_name"])
-
-    risk = summary["risk_level"]
-    c3.metric(
-        "RISK LEVEL", risk,
-        delta="⚠ HIGH RISK"  if risk == "HIGH"
-              else ("LOW RISK" if risk == "LOW" else None),
-        delta_color="inverse" if risk == "HIGH" else "normal",
-    )
-    c4.metric(
-        "ATTEMPTS", summary["attempts"],
-        delta="REPAIRED ✓" if summary["repaired"] else "FIRST PASS",
-        delta_color="normal",
-    )
-
-    st.markdown("<br>", unsafe_allow_html=True)
-    s1, s2, s3 = st.columns(3)
-    s1.metric("REPAIR CYCLE",   "YES" if summary["repaired"] else "NO")
-    s2.metric("FINDINGS TOTAL", summary["total_findings"])
-    s3.metric("EXEC BLOCKED",   "YES" if summary["execution_blocked"] else "NO")
-
-    st.divider()
+    # ── Telemetry (hidden in presentation mode) ───────────────────────────
+    if not presentation_mode:
+        st.markdown('<div class="section-hdr">RUN TELEMETRY</div>', unsafe_allow_html=True)
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("RUNTIME MODE", run_data.get("runtime_mode", "—"))
+        c2.metric("MODEL",        summary["model_name"])
+        risk = summary["risk_level"]
+        c3.metric(
+            "RISK LEVEL", risk,
+            delta="⚠ HIGH RISK" if risk == "HIGH" else ("LOW RISK" if risk == "LOW" else None),
+            delta_color="inverse" if risk == "HIGH" else "normal",
+        )
+        c4.metric(
+            "ATTEMPTS", summary["attempts"],
+            delta="REPAIRED ✓" if summary["repaired"] else "FIRST PASS",
+            delta_color="normal",
+        )
+        st.markdown("<br>", unsafe_allow_html=True)
+        s1, s2, s3 = st.columns(3)
+        s1.metric("REPAIR CYCLE",   "YES" if summary["repaired"] else "NO")
+        s2.metric("FINDINGS TOTAL", summary["total_findings"])
+        s3.metric("EXEC BLOCKED",   "YES" if summary["execution_blocked"] else "NO")
+        st.divider()
 
     # ── Critic findings ───────────────────────────────────────────────────
     findings = summary["findings"]
-    with st.expander(f"🔍  CRITIC FINDINGS  ─  {len(findings)} issue(s) detected", expanded=bool(findings)):
+    with st.expander(f"🔍  CRITIC FINDINGS  ─  {len(findings)} issue(s) detected",
+                     expanded=bool(findings)):
         if not findings:
             st.markdown(
                 '<div class="card card-green" style="color:#00cc66;">'
@@ -629,7 +763,8 @@ def _render() -> None:  # noqa: C901
 
     # ── Memory writes ─────────────────────────────────────────────────────
     lessons = summary["memory_lessons"]
-    with st.expander(f"🧠  MEMORY WRITES  ─  {len(lessons)} lesson(s)", expanded=bool(lessons)):
+    with st.expander(f"🧠  MEMORY WRITES  ─  {len(lessons)} lesson(s)",
+                     expanded=bool(lessons)):
         if not lessons:
             st.markdown(
                 '<div class="card card-grey" style="color:#2a5060;">'
@@ -643,7 +778,7 @@ def _render() -> None:  # noqa: C901
                 lid        = str(entry.get("id", ""))[:16]
                 snippet    = content[:120] + "…" if len(content) > 120 else content
                 card_cls   = "card-red"   if "failure" in ltype else "card-green"
-                type_color = "#ee4433" if "failure" in ltype else "#00cc66"
+                type_color = "#ee4433"    if "failure" in ltype else "#00cc66"
                 st.markdown(
                     f'<div class="card {card_cls}">'
                     f'<span style="color:{type_color};font-size:0.75em;">[{ltype.upper()}]</span>'
@@ -653,28 +788,27 @@ def _render() -> None:  # noqa: C901
                     unsafe_allow_html=True,
                 )
 
-    # ── Memory backend status ─────────────────────────────────────────────
-    st.markdown('<div class="section-hdr">MEMORY BACKENDS</div>', unsafe_allow_html=True)
-    chroma_cls  = "mem-chip mem-chip-ok"   if lessons else "mem-chip mem-chip-mock"
-    chroma_txt  = "● CHROMADB  ACTIVE"     if lessons else "● CHROMADB  MOCK FALLBACK"
-    neo4j_cls   = "mem-chip mem-chip-off"
-    neo4j_txt   = "○ NEO4J  NOT CONFIGURED"
-    llm_cls     = "mem-chip mem-chip-ok"   if runtime_mode == "REAL_QWEN_MODE" else "mem-chip mem-chip-mock"
-    llm_txt     = f"● LLM  {runtime_mode}"
-    st.markdown(
-        f'<div class="mem-row">'
-        f'<span class="{chroma_cls}">{chroma_txt}</span>'
-        f'<span class="{neo4j_cls}">{neo4j_txt}</span>'
-        f'<span class="{llm_cls}">{llm_txt}</span>'
-        f'</div>',
-        unsafe_allow_html=True,
-    )
+    # ── Memory backends (hidden in presentation mode) ─────────────────────
+    if not presentation_mode:
+        st.markdown('<div class="section-hdr">MEMORY BACKENDS</div>', unsafe_allow_html=True)
+        chroma_cls = "mem-chip mem-chip-ok"   if lessons else "mem-chip mem-chip-mock"
+        chroma_txt = "● CHROMADB  ACTIVE"     if lessons else "● CHROMADB  MOCK FALLBACK"
+        llm_cls    = "mem-chip mem-chip-ok"   if runtime_mode == "REAL_QWEN_MODE" \
+                     else "mem-chip mem-chip-mock"
+        st.markdown(
+            f'<div class="mem-row">'
+            f'<span class="{chroma_cls}">{chroma_txt}</span>'
+            f'<span class="mem-chip mem-chip-off">○ NEO4J  NOT CONFIGURED</span>'
+            f'<span class="{llm_cls}">● LLM  {runtime_mode}</span>'
+            f'</div>',
+            unsafe_allow_html=True,
+        )
 
     st.markdown("<br>", unsafe_allow_html=True)
     st.divider()
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # ── Final verdict ─────────────────────────────────────────────────────
+    # ── Final verdict (always shown — screenshot focal point) ─────────────
     st.markdown('<div class="section-hdr">FINAL VERDICT</div>', unsafe_allow_html=True)
     fs = summary["final_status"]
 
@@ -701,23 +835,40 @@ def _render() -> None:  # noqa: C901
             unsafe_allow_html=True,
         )
 
-    # ── Exportable demo summary ───────────────────────────────────────────
+    # ── Download report button (Phase 5C) ─────────────────────────────────
     st.markdown("<br>", unsafe_allow_html=True)
-    st.markdown('<div class="section-hdr">EXPORT · DEMO SUMMARY</div>', unsafe_allow_html=True)
     export_text = build_demo_summary_text(
         session_id   = run_data.get("session_id", "—"),
         runtime_mode = run_data.get("runtime_mode", "—"),
         summary      = summary,
     )
-    st.code(export_text, language=None)
-
-    # ── Session footer ────────────────────────────────────────────────────
-    st.markdown(
-        f'<div style="color:#0e2840;font-size:0.70em;text-align:center;margin-top:16px;">'
-        f'session &nbsp;·&nbsp; {run_data.get("session_id", "—")}'
-        f'</div>',
-        unsafe_allow_html=True,
+    dl_filename = format_download_filename(
+        session_id   = run_data.get("session_id", "session"),
+        final_status = summary["final_status"],
     )
+    st.download_button(
+        label        = "⬇  DOWNLOAD DEMO REPORT",
+        data         = export_text,
+        file_name    = dl_filename,
+        mime         = "text/plain",
+        use_container_width = True,
+    )
+
+    # ── Exportable summary text block (hidden in presentation mode) ───────
+    if not presentation_mode:
+        st.markdown("<br>", unsafe_allow_html=True)
+        st.markdown('<div class="section-hdr">EXPORT · DEMO SUMMARY</div>',
+                    unsafe_allow_html=True)
+        st.code(export_text, language=None)
+
+    # ── Session footer (hidden in presentation mode) ──────────────────────
+    if not presentation_mode:
+        st.markdown(
+            f'<div style="color:#0e2840;font-size:0.70em;text-align:center;margin-top:16px;">'
+            f'session &nbsp;·&nbsp; {run_data.get("session_id", "—")}'
+            f'</div>',
+            unsafe_allow_html=True,
+        )
 
 
 # ---------------------------------------------------------------------------
