@@ -7,6 +7,8 @@
 
 **No API key required for demos. No Neo4j server required for tests. Runs fully offline in mock mode.**
 
+> **Hackathon submission** — see [docs/DEVPOST_SUBMISSION.md](docs/DEVPOST_SUBMISSION.md) for the full write-up and [docs/DEMO_SCRIPT.md](docs/DEMO_SCRIPT.md) for the live demo script.
+
 ---
 
 ## Features
@@ -71,6 +73,67 @@ User / CLI / Dashboard
 
 ---
 
+## Qwen Cloud Integration
+
+AeonLogic uses Qwen Cloud (DashScope API) as its inference backbone in three modes:
+
+| Mode | How to activate | Behaviour |
+|---|---|---|
+| `REAL_MODEL_MODE` | `AEONLOGIC_MODE=real` + `QWEN_API_KEY` | Full Qwen Cloud inference |
+| `FALLBACK_MODE` | API key set, live call fails | Auto-fallback to deterministic mock |
+| `MOCK_MODEL_MODE` | No key (default) | Fully offline — complete demo without API costs |
+
+The **Qwen Cloud status panel** in the Streamlit sidebar shows runtime mode, configured model, base URL, and a masked API key indicator. The raw key is never logged or displayed anywhere.
+
+To enable real mode, create a `.env` file:
+
+```env
+AEONLOGIC_MODE=real
+QWEN_API_KEY=sk-...
+QWEN_BASE_URL=https://dashscope-intl.aliyuncs.com/compatible-mode/v1
+QWEN_MODEL=qwen-plus
+```
+
+---
+
+## Dashboard Features
+
+The Streamlit Command Center (`src/aeonlogic/app/streamlit_demo.py`) exposes the full pipeline through themed panels:
+
+| Panel | What it shows |
+|---|---|
+| **Agent timeline** | Animated pipeline — DISPATCH → GENERATE → CRITIC → EXECUTE → REPAIR → MEMORY → FINAL |
+| **Qwen Cloud status** | Runtime mode · model · base URL · API key presence (masked) |
+| **Run telemetry** | Runtime mode · model · risk level · attempt count |
+| **Critic Findings** | Severity-coloured finding cards with evidence and recommendation |
+| **Memory Writes** | Failure (red) and success (green) lesson cards with content snippets |
+| **Memory Evidence** | ChromaDB / Hybrid Memory / Neo4j status · written / failure / success / retrieved counts |
+| **Artifact Preview** | Generated artifact text (truncated to 800 chars) + session ID |
+| **Final Verdict** | Full-width `✅ SUCCESS` or `✗ FAILED` card |
+| **Download Report** | Plain-text export with session ID, model, findings, lessons, verdict |
+| **Presentation mode** | One toggle hides telemetry — clean screenshots for slides |
+
+---
+
+## Project Status
+
+| Milestone | Status |
+|---|---|
+| Phase 1 — Core domain models | ✅ Complete |
+| Phase 2 — LangGraph pipeline | ✅ Complete |
+| Phase 3 — ChromaDB + Neo4j Hybrid Memory | ✅ Complete |
+| Phase 4 — CLI (Typer + Rich) | ✅ Complete |
+| Phase 5 — Streamlit Command Center | ✅ Complete |
+| Phase 6A — Real Qwen Cloud mode | ✅ Complete |
+| Phase 6B — Qwen Cloud proof UI | ✅ Complete |
+| Phase 6C — Artifact Preview panel | ✅ Complete |
+| Phase 6D — Memory Evidence panel | ✅ Complete |
+| Phase 6E — Devpost Submission Pack | ✅ Complete |
+
+**Test suite:** 412+ unit tests passing · zero external services required in CI.
+
+---
+
 ## Quick start
 
 ### Prerequisites
@@ -113,7 +176,7 @@ pip install -r requirements.txt
 $env:PYTHONPATH = "src"; python -m pytest tests -v
 ```
 
-> **Expected:** 267+ tests pass. One pre-existing `structlog` import failure is unrelated to engine logic and does not affect the demo.
+> **Expected:** 412+ tests pass. One pre-existing `structlog` import failure is unrelated to engine logic and does not affect the demo.
 
 ### 3 — Run the CLI demo
 
@@ -155,12 +218,14 @@ AeonLogic/
 │   ├── security/        # Policies, threat models, validators, adversarial test suite
 │   └── utils/           # ULID IDs, hashing, retry helpers
 ├── docs/
-│   ├── SHOWCASE.md          # Project pitch, demo script, screenshot checklist
-│   ├── ENGINE_STATUS.md     # Completed phases, run/test commands, guarantees
-│   ├── SYSTEM_DESIGN.md     # Architecture decisions, component interactions
-│   ├── AGENT_SPEC.md        # Per-agent contracts, inputs, outputs
-│   ├── STATE_MACHINE.md     # LangGraph state schema and edge rules
-│   └── WHITEPAPER_SUMMARY.md  # Theoretical foundation (Recursive Perpetual Evolution)
+│   ├── DEVPOST_SUBMISSION.md    # Hackathon submission write-up
+│   ├── DEMO_SCRIPT.md           # 30s / 2min / 5min demo scripts + Q&A
+│   ├── SHOWCASE.md              # Project pitch, screenshot checklist, feature matrix
+│   ├── ENGINE_STATUS.md         # Completed phases, run/test commands, guarantees
+│   ├── SYSTEM_DESIGN.md         # Architecture decisions, component interactions
+│   ├── AGENT_SPEC.md            # Per-agent contracts, inputs, outputs
+│   ├── STATE_MACHINE.md         # LangGraph state schema and edge rules
+│   └── WHITEPAPER_SUMMARY.md    # Theoretical foundation (Recursive Perpetual Evolution)
 ├── tests/
 │   ├── unit/            # ChromaDB, Neo4j, hybrid memory, generator, dashboard
 │   └── integration/     # Full repair-loop LangGraph test
@@ -175,7 +240,9 @@ AeonLogic/
 
 | Document | Description |
 |---|---|
-| [SHOWCASE.md](docs/SHOWCASE.md) | Project pitch, demo script, screenshot checklist, judge-friendly explanation |
+| [DEVPOST_SUBMISSION.md](docs/DEVPOST_SUBMISSION.md) | **Hackathon submission** — problem, solution, Qwen Cloud usage, architecture, what's next |
+| [DEMO_SCRIPT.md](docs/DEMO_SCRIPT.md) | **Live demo scripts** — 30-second pitch, 2-minute demo, 5-minute judge walkthrough, Q&A |
+| [SHOWCASE.md](docs/SHOWCASE.md) | Project pitch, screenshot checklist, judge-friendly explanation, feature matrix |
 | [ENGINE_STATUS.md](docs/ENGINE_STATUS.md) | Completed phases, run/test commands, current guarantees |
 | [SYSTEM_DESIGN.md](docs/SYSTEM_DESIGN.md) | Architecture decisions, component interactions, data flows |
 | [AGENT_SPEC.md](docs/AGENT_SPEC.md) | Per-agent contracts, inputs, outputs, model assignments |
