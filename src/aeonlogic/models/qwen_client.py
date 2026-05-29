@@ -153,6 +153,27 @@ class ResilientQwenClient:
             return _mock_client.complete(budget, prompt)
 
 
+# ── API key masking (security utility) ───────────────────────────────────────
+
+def mask_api_key(key: str) -> str:
+    """Return a display-safe masked version of an API key.
+
+    Rules:
+    - Empty / whitespace → "NOT SET"
+    - ≤ 8 chars          → all bullet characters (length not revealed)
+    - > 8 chars          → first 4 chars + 8 bullets + last 4 chars
+
+    The full key is NEVER returned.  At most 8 plain characters are visible,
+    which is enough to identify a key without exposing it.
+    """
+    stripped = key.strip()
+    if not stripped:
+        return "NOT SET"
+    if len(stripped) <= 8:
+        return "●" * len(stripped)
+    return f"{stripped[:4]}{'●' * 8}{stripped[-4:]}"
+
+
 # ── Active mode tracking ──────────────────────────────────────────────────────
 # Reflects what actually happened at runtime (may differ from config when
 # AEONLOGIC_MODE=real but a call fails and falls back).

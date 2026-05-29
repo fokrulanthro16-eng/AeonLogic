@@ -298,6 +298,36 @@ summary { color: #3a8aaa !important; font-size: 0.83em; letter-spacing: 1px; }
 /* ── Quick-task description text ── */
 .qt-desc { font-size: 0.68em; color: #1e4a60; letter-spacing: 1px; margin-top: 2px; }
 .qt-section { font-size: 0.70em; letter-spacing: 2px; color: #1e5070; margin-bottom: 8px; }
+
+/* ── Qwen Cloud status panel (sidebar) ── */
+.qs-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.72em;
+    padding: 4px 0;
+    border-bottom: 1px solid #06101e;
+    color: #b0c8e0;
+    gap: 6px;
+}
+.qs-label {
+    color: #1e5070;
+    letter-spacing: 1px;
+    flex-shrink: 0;
+    min-width: 68px;
+}
+.qs-value-real     { color: #00cc66; }
+.qs-value-fallback { color: #dd8800; }
+.qs-value-mock     { color: #7ab830; }
+.qs-value-ok       { color: #00aa55; }
+.qs-value-warn     { color: #cc3344; }
+.qs-note {
+    font-size: 0.64em;
+    color: #1a4060;
+    margin-top: 8px;
+    line-height: 1.5;
+    padding: 5px 0;
+}
 </style>
 """
 
@@ -570,6 +600,41 @@ def _severity_css(sev: str) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Qwen Cloud status (pure — no Streamlit dependency)
+# ---------------------------------------------------------------------------
+
+#: Message shown in the status panel explaining how to enable real Qwen mode.
+QWEN_ACTIVATION_NOTE = (
+    "Real Qwen Cloud mode activates when "
+    "AEONLOGIC_MODE=real and QWEN_API_KEY is set."
+)
+
+
+def build_qwen_cloud_status(settings: Any) -> dict[str, Any]:
+    """Return a display-safe dict of Qwen Cloud configuration status.
+
+    Pure function — no Streamlit calls, safe to unit-test directly.
+    The API key is NEVER included in the output; only a masked representation
+    and a boolean presence flag are returned.
+    """
+    from aeonlogic.models.qwen_client import mask_api_key
+
+    key_raw         = str(getattr(settings, "qwen_api_key", ""))
+    base_url        = str(getattr(settings, "qwen_base_url", ""))
+    model_override  = str(getattr(settings, "qwen_model", "")).strip()
+    fallback_model  = str(getattr(settings, "qwen_fast_model", "qwen-turbo"))
+
+    return {
+        "runtime_mode":        getattr(settings, "runtime_mode_label", "MOCK_MODEL_MODE"),
+        "configured_model":    model_override or fallback_model,
+        "base_url_configured": bool(base_url.strip()),
+        "api_key_present":     bool(key_raw.strip()),
+        "api_key_masked":      mask_api_key(key_raw),
+        "activation_note":     QWEN_ACTIVATION_NOTE,
+    }
+
+
+# ---------------------------------------------------------------------------
 # Streamlit rendering — only called when run via `streamlit run`
 # ---------------------------------------------------------------------------
 
@@ -604,6 +669,69 @@ def _render() -> None:  # noqa: C901
                 '</div>',
                 unsafe_allow_html=True,
             )
+
+        # ── Qwen Cloud status panel ───────────────────────────────────────
+        st.markdown(
+            '<div style="color:#3a8aaa;font-size:0.78em;letter-spacing:2px;'
+            'text-transform:uppercase;border-bottom:1px solid #0e2840;'
+            'padding-bottom:6px;margin-top:18px;margin-bottom:10px;">'
+            '⚡ QWEN CLOUD</div>',
+            unsafe_allow_html=True,
+        )
+
+        from aeonlogic.config.settings import get_settings as _gs
+        _qst = build_qwen_cloud_status(_gs())
+
+        # Runtime mode row
+        _mode   = _qst["runtime_mode"]
+        _mcls   = ("qs-value-real"     if "REAL"     in _mode else
+                   "qs-value-fallback" if "FALLBACK" in _mode else
+                   "qs-value-mock")
+        st.markdown(
+            f'<div class="qs-row">'
+            f'<span class="qs-label">MODE</span>'
+            f'<span class="{_mcls}">{_mode}</span>'
+            f'</div>',
+            unsafe_allow_html=True,
+        )
+
+        # Configured model row
+        st.markdown(
+            f'<div class="qs-row">'
+            f'<span class="qs-label">MODEL</span>'
+            f'<span style="color:#8ab8d8;">{_qst["configured_model"]}</span>'
+            f'</div>',
+            unsafe_allow_html=True,
+        )
+
+        # Base URL row
+        _url_ok = _qst["base_url_configured"]
+        st.markdown(
+            f'<div class="qs-row">'
+            f'<span class="qs-label">BASE URL</span>'
+            f'<span class="{"qs-value-ok" if _url_ok else "qs-value-warn"}">'
+            f'{"✓ configured" if _url_ok else "✗ not set"}'
+            f'</span></div>',
+            unsafe_allow_html=True,
+        )
+
+        # API key row — masked value only, never the real key
+        _key_ok     = _qst["api_key_present"]
+        _key_masked = _qst["api_key_masked"]
+        st.markdown(
+            f'<div class="qs-row">'
+            f'<span class="qs-label">API KEY</span>'
+            f'<span class="{"qs-value-ok" if _key_ok else "qs-value-warn"}">'
+            f'{"✓ " + _key_masked if _key_ok else "✗ NOT SET"}'
+            f'</span></div>',
+            unsafe_allow_html=True,
+        )
+
+        # Activation note
+        st.markdown(
+            f'<div class="qs-note">{_qst["activation_note"]}</div>',
+            unsafe_allow_html=True,
+        )
 
     # ── Hero ─────────────────────────────────────────────────────────────
     st.markdown(
