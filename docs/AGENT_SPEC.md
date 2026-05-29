@@ -48,15 +48,17 @@ Decomposes the raw user goal into one or more `Task` domain objects, assigns a `
 
 Produces a candidate `Artifact` (code, plan, analysis, or structured data) for the active task. Consumes memory context injected by the Memory Synthesizer retrieval path.
 
-### Input (from `AgentState`)
+### Input (from `AeonState`)
 
 | Field | Type | Description |
 |---|---|---|
 | `active_task` | `Task` | Task to solve |
 | `model_tier` | `ModelTier` | Routing instruction from Dispatcher |
-| `memory_context` | `MemoryContext` | Relevant Neo4j subgraph + ChromaDB top-k |
+| `memory_context` | `dict[str, Any]` | `{"lessons": list[Lesson]}` — ChromaDB top-k retrieved by Memory Synthesizer |
 | `critic_findings` | `list[Finding]` | Populated on retry iterations |
 | `generation_attempt` | `int` | 1-indexed retry counter |
+
+> **Phase 4C behaviour:** When `memory_context["lessons"]` is non-empty, `summarize_lessons()` converts the list into a compact hint that is prepended to the base prompt. When the list is empty the prompt is byte-for-byte identical to pre-4C output.
 
 ### Output (partial state update)
 

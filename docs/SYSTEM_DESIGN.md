@@ -71,11 +71,23 @@ Selects between `qwen-turbo` and `qwen-plus` based on a `RiskLevel` enum attache
 
 ### 3.4 Memory layer (`src/aeonlogic/memory/`)
 
-| Store | Technology | Access pattern |
+| Module | Technology | Role |
 |---|---|---|
-| **Knowledge graph** | Neo4j | Cypher queries; stores entities, relationships, provenance chains |
-| **Vector store** | ChromaDB | Approximate nearest-neighbour search; stores episodic memories as embeddings |
-| **Hybrid retrieval** | `hybrid_store.py` | Fuses graph traversal with vector similarity before injecting context into prompts |
+| `chroma_store.py` | ChromaDB | Persistent semantic store; `write_lesson`, `search_lessons`, `clear` |
+| `neo4j_store.py` | Neo4j (lazy import) | Knowledge graph; `write_failure_lesson`, `write_success_lesson`, `write_artifact_relationship`, `health_check` |
+| `hybrid_store.py` | Chroma + Neo4j | Orchestrator: Chroma is authoritative, Neo4j is best-effort; full fallback chain (Chroma → MockMemoryStore, Neo4j → silent no-op) |
+| `retrieval.py` | Pure Python | `MemoryRetriever` wraps any `search_lessons`-compatible backend; `summarize_lessons` formats retrieved lessons as a prompt hint |
+| `schemas.py` | dataclasses | `Lesson`, `FailureLesson`, `SuccessLesson`, `ArtifactRelationship` |
+
+**Fallback chain (Phase 4E):**
+```
+write_failure_lesson / write_success_lesson
+    │
+    ├──► ChromaMemoryStore  (unavailable → MockMemoryStore)
+    └──► Neo4jMemoryStore   (unavailable → silent no-op, never raises)
+```
+
+No real Neo4j server or API key is required for any unit test — the Neo4j driver is injected as a mock.
 
 ### 3.5 Execution layer (`src/aeonlogic/execution/`)
 

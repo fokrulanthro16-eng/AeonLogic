@@ -81,9 +81,9 @@ docker-compose up -d
 
 ### 5. Run
 
-```bash
-# CLI
-aeonlogic run --task "your task description"
+```powershell
+# Windows (installed via .venv)
+.\.venv\Scripts\aeonlogic.exe "Build a secure API authentication module"
 
 # API server
 uvicorn aeonlogic.app.api:app --reload
@@ -127,6 +127,7 @@ AeonLogic/
 
 | Document | Description |
 |---|---|
+| [ENGINE_STATUS.md](docs/ENGINE_STATUS.md) | Current phase, completed features, run/test commands, guarantees |
 | [SYSTEM_DESIGN.md](docs/SYSTEM_DESIGN.md) | Architecture decisions, component interactions, data flows |
 | [AGENT_SPEC.md](docs/AGENT_SPEC.md) | Per-agent contracts, inputs, outputs, model assignments |
 | [STATE_MACHINE.md](docs/STATE_MACHINE.md) | LangGraph state schema and edge transition rules |
@@ -136,15 +137,18 @@ AeonLogic/
 
 ## Development
 
-```bash
+```powershell
 # Lint
 ruff check src tests
 
 # Type-check
 mypy src
 
-# Tests
-pytest
+# Tests (Windows)
+.\.venv\Scripts\python.exe -m pytest tests -v
+
+# Tests (with explicit PYTHONPATH, no install required)
+$env:PYTHONPATH = "src"; python -m pytest tests -v
 ```
 
 ---

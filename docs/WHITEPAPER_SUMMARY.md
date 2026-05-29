@@ -106,3 +106,15 @@ Over time, the system accumulates a domain-specific knowledge graph that encodes
 The ultimate aim of Recursive Perpetual Evolution is a system that improves its performance on a class of tasks through lived experience — not fine-tuning, not prompt engineering by humans, but by accumulating a rich, queryable record of what it has attempted, what succeeded, why things failed, and what patterns generalise.
 
 Each session is a small step. The graph that emerges over thousands of sessions is the evolution.
+
+---
+
+## 7. Phase 4 implementation note
+
+As of Phase 4F, the memory substrate described in sections 2–5 is fully implemented:
+
+- **ChromaDB** (`memory/chroma_store.py`) provides the episodic embedding store. Lessons are written and retrieved via semantic similarity search.
+- **Neo4j** (`memory/neo4j_store.py`) provides the structured knowledge graph. Failure and success lessons are persisted as typed nodes; artifact-task-lesson relationships are stored as edges.
+- **Hybrid memory orchestration** (`memory/hybrid_store.py`) coordinates both stores: Chroma is authoritative (falls back to an in-memory mock if unavailable); Neo4j is best-effort (failures are silently swallowed so the pipeline is never interrupted).
+- **Recursive self-healing** is enforced by the repair loop: the Critic's findings are injected back into the Generator prompt on retry, and past lessons retrieved from ChromaDB are prepended as a compact memory hint (Phase 4C).
+- **Qwen mock fallback** (`models/qwen_client.py`) ensures the entire engine runs deterministically in CI without any external API dependency.

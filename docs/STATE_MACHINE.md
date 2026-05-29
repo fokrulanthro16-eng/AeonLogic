@@ -2,10 +2,10 @@
 
 ## 1. State schema
 
-The `AgentState` TypedDict (defined in `src/aeonlogic/graph/state.py`) is the single shared envelope passed between all graph nodes. LangGraph merges partial update dicts into this envelope after each node returns.
+The `AeonState` TypedDict (defined in `src/aeonlogic/graph/state.py`) is the single shared envelope passed between all graph nodes. LangGraph merges partial update dicts into this envelope after each node returns.
 
 ```python
-class AgentState(TypedDict):
+class AeonState(TypedDict):
     # ── Identity ────────────────────────────────────────────────────────────
     session_id: str                        # ULID — top-level session
     cycle_id: str                          # ULID — current recursion cycle
@@ -20,8 +20,9 @@ class AgentState(TypedDict):
     model_tier: ModelTier                  # FAST | STRONG
 
     # ── Memory ──────────────────────────────────────────────────────────────
-    memory_context: MemoryContext | None   # Retrieved context for Generator
+    memory_context: dict[str, Any]         # Retrieved lessons keyed by "lessons"
     memory_write_ids: list[str]            # IDs written this cycle
+    lessons_written: list[dict[str, str]]  # Lesson records distilled this cycle
 
     # ── Generation ──────────────────────────────────────────────────────────
     candidate_artifact: Artifact | None
@@ -45,6 +46,8 @@ class AgentState(TypedDict):
     executor_trace: str
     synthesizer_trace: str
 ```
+
+> **Note (Phase 4C):** `memory_context["lessons"]` is a `list[Lesson]` populated by the Memory Synthesizer. The Generator reads this list and, when non-empty, prepends a compact hint to the prompt via `summarize_lessons()` from `memory/retrieval.py`.
 
 ---
 
