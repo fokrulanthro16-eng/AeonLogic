@@ -7,7 +7,7 @@
 
 **No API key required for demos. No Neo4j server required for tests. Runs fully offline in mock mode.**
 
-> **Hackathon submission** — see [docs/DEVPOST_SUBMISSION.md](docs/DEVPOST_SUBMISSION.md) for the full write-up and [docs/DEMO_SCRIPT.md](docs/DEMO_SCRIPT.md) for the live demo script.
+> **Hackathon submission** — see [docs/DEVPOST_SUBMISSION.md](docs/DEVPOST_SUBMISSION.md) for the full write-up, [docs/DEMO_SCRIPT.md](docs/DEMO_SCRIPT.md) for the live demo script, [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the Mermaid architecture diagram, and [docs/ALIBABA_CLOUD_PROOF.md](docs/ALIBABA_CLOUD_PROOF.md) for Alibaba Cloud / Qwen Cloud integration proof.
 
 ---
 
@@ -73,9 +73,9 @@ User / CLI / Dashboard
 
 ---
 
-## Qwen Cloud Integration
+## Qwen Cloud / Alibaba Cloud Integration
 
-AeonLogic uses Qwen Cloud (DashScope API) as its inference backbone in three modes:
+AeonLogic uses Qwen Cloud (part of **Alibaba Cloud**, delivered via the DashScope API) as its inference backbone in three modes:
 
 | Mode | How to activate | Behaviour |
 |---|---|---|
@@ -83,9 +83,11 @@ AeonLogic uses Qwen Cloud (DashScope API) as its inference backbone in three mod
 | `FALLBACK_MODE` | API key set, live call fails | Auto-fallback to deterministic mock |
 | `MOCK_MODEL_MODE` | No key (default) | Fully offline — complete demo without API costs |
 
-The **Qwen Cloud status panel** in the Streamlit sidebar shows runtime mode, configured model, base URL, and a masked API key indicator. The raw key is never logged or displayed anywhere.
+The **Qwen Cloud status panel** in the Streamlit sidebar shows runtime mode, configured model, base URL, and a masked `QWEN_API_KEY` indicator. The raw key is never logged or displayed anywhere. **No API key is committed to VCS** — only `.env.example` (with empty key) is tracked.
 
-To enable real mode, create a `.env` file:
+> Mock-mode demo: run with no API key and the full self-healing loop still executes using `MockQwenClient` — no internet connection required.
+
+To enable real mode, create a `.env` file (never commit this file):
 
 ```env
 AEONLOGIC_MODE=real
@@ -220,6 +222,8 @@ AeonLogic/
 ├── docs/
 │   ├── DEVPOST_SUBMISSION.md    # Hackathon submission write-up
 │   ├── DEMO_SCRIPT.md           # 30s / 2min / 5min demo scripts + Q&A
+│   ├── ARCHITECTURE.md          # Mermaid diagram + Qwen Cloud / Alibaba Cloud component reference
+│   ├── ALIBABA_CLOUD_PROOF.md   # Integration proof, env vars, deployment checklist
 │   ├── SHOWCASE.md              # Project pitch, screenshot checklist, feature matrix
 │   ├── ENGINE_STATUS.md         # Completed phases, run/test commands, guarantees
 │   ├── SYSTEM_DESIGN.md         # Architecture decisions, component interactions
@@ -242,6 +246,8 @@ AeonLogic/
 |---|---|
 | [DEVPOST_SUBMISSION.md](docs/DEVPOST_SUBMISSION.md) | **Hackathon submission** — problem, solution, Qwen Cloud usage, architecture, what's next |
 | [DEMO_SCRIPT.md](docs/DEMO_SCRIPT.md) | **Live demo scripts** — 30-second pitch, 2-minute demo, 5-minute judge walkthrough, Q&A |
+| [ARCHITECTURE.md](docs/ARCHITECTURE.md) | **Mermaid architecture diagram** — Streamlit Command Center, engine, Qwen Cloud client, memory |
+| [ALIBABA_CLOUD_PROOF.md](docs/ALIBABA_CLOUD_PROOF.md) | **Alibaba Cloud / Qwen Cloud proof** — integration evidence, env vars, deployment checklist |
 | [SHOWCASE.md](docs/SHOWCASE.md) | Project pitch, screenshot checklist, judge-friendly explanation, feature matrix |
 | [ENGINE_STATUS.md](docs/ENGINE_STATUS.md) | Completed phases, run/test commands, current guarantees |
 | [SYSTEM_DESIGN.md](docs/SYSTEM_DESIGN.md) | Architecture decisions, component interactions, data flows |

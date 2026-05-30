@@ -34,9 +34,9 @@ This is the loop that closes the security feedback gap.
 
 ---
 
-## How AeonLogic Uses Qwen Cloud
+## How AeonLogic Uses Qwen Cloud (Alibaba Cloud)
 
-Qwen Cloud (DashScope API) is the inference backbone for all five agents. AeonLogic uses it in three modes:
+Qwen Cloud is part of the **Alibaba Cloud** ecosystem, delivered via the DashScope API. AeonLogic uses it as the inference backbone for all five agents in three modes:
 
 | Mode | Environment | Behaviour |
 |---|---|---|
@@ -87,7 +87,26 @@ Qwen mock mode, ChromaDB embedded mode, and Neo4j silent no-op means a complete 
 
 ---
 
+## Links
+
+| Resource | URL |
+|---|---|
+| **Live Demo** | *(deploy to Streamlit Community Cloud or Alibaba Cloud ECS — URL TBD)* |
+| **Demo Video** | *(Loom / YouTube recording showing real Qwen Cloud run — URL TBD)* |
+| **GitHub Repo** | *(public repo URL)* |
+| **Architecture Diagram** | [docs/ARCHITECTURE.md](ARCHITECTURE.md) — Mermaid diagram with full component breakdown |
+| **Cloud Proof** | [docs/ALIBABA_CLOUD_PROOF.md](ALIBABA_CLOUD_PROOF.md) — Qwen Cloud / Alibaba Cloud integration proof |
+
+---
+
 ## Technical Architecture
+
+See [docs/ARCHITECTURE.md](ARCHITECTURE.md) for the full Mermaid architecture diagram, component reference, and Qwen Cloud / Alibaba Cloud deployment guide.
+
+**Key code paths:**
+- Qwen Cloud client: `src/aeonlogic/models/qwen_client.py` — `QwenClient.complete()` posts to DashScope
+- Dashboard: `src/aeonlogic/app/streamlit_demo.py` — `build_qwen_cloud_status()` shows live Alibaba Cloud status
+- Env template: `.env.example` — `QWEN_API_KEY=` empty; no API key is committed to VCS
 
 ```
 User / CLI / Streamlit Command Center
