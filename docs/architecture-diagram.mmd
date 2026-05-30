@@ -1,0 +1,69 @@
+%%{init: {"theme": "dark", "themeVariables": {"primaryColor": "#071828", "primaryTextColor": "#c0d4e8", "primaryBorderColor": "#00ccff", "lineColor": "#4090b8", "secondaryColor": "#060f1c", "tertiaryColor": "#050c18", "background": "#050c18", "mainBkg": "#071828", "nodeBorder": "#00ccff", "clusterBkg": "#060f1c", "titleColor": "#c0d4e8", "edgeLabelBackground": "#071828", "nodeTextColor": "#c0d4e8"}}}%%
+flowchart TD
+    classDef usr    fill:#050c18,stroke:#00ccff,color:#c0e8ff,stroke-width:2px
+    classDef front  fill:#071828,stroke:#00ccff,color:#b8d8f0,stroke-width:1px
+    classDef eng    fill:#060f1c,stroke:#4090b8,color:#9ac0d8,stroke-width:1px
+    classDef qwen   fill:#071a10,stroke:#00ee88,color:#90e0a8,stroke-width:1px
+    classDef mem    fill:#1a1208,stroke:#ffaa00,color:#ffe8a0,stroke-width:1px
+    classDef out    fill:#0d0a1e,stroke:#9090ff,color:#c8c8ff,stroke-width:1px
+    classDef dash   fill:#071828,stroke:#00ccff,color:#b8d8f0,stroke-width:2px
+
+    %% ── Entry points ────────────────────────────────────────────────────
+    GH("📦 GitHub Repo\ngithub.com/user/aeonlogic"):::usr
+    LD("🌐 Streamlit Live Demo\nyour-app.streamlit.app"):::usr
+
+    %% ── Streamlit Command Center ─────────────────────────────────────────
+    subgraph FE["  🖥️  Streamlit Command Center  ·  streamlit_demo.py  "]
+        INPUT["Mission input\nQuick-task presets · Mode badge"]:::front
+        QSTATUS["⚡ Qwen Cloud Status Panel\nRuntime mode · Model · API key masked"]:::front
+    end
+
+    GH & LD --> INPUT
+
+    %% ── AeonLogic Self-Healing Engine ────────────────────────────────────
+    subgraph ENG["  🔁  AeonLogic Recursive Self-Healing Engine  ·  LangGraph  "]
+        DISP["⚙️ Dispatcher\nClassify · Risk · Model tier"]:::eng
+        GEN["✍️ Generator\nCandidate artifact via Qwen Cloud"]:::eng
+        CRIT["🔍 Critic  /  Adversarial Auditor\nStructured Finding objects"]:::eng
+        REPAIR["🔧 Repair Loop\nFindings injected back → regenerate"]:::eng
+        EXEC["▶️ Executor\nRun · Validate · Block on critical"]:::eng
+        SYNTH["💾 Memory Synthesizer\nWrite failure + success lessons"]:::eng
+
+        DISP --> GEN --> CRIT
+        CRIT -- "REJECTED\nfindings injected" --> REPAIR --> GEN
+        CRIT -- "APPROVED" --> EXEC --> SYNTH
+    end
+
+    INPUT --> DISP
+
+    %% ── Qwen Cloud / Alibaba Cloud Model Studio ──────────────────────────
+    subgraph QW["  ⚡  Qwen Cloud  ·  Alibaba Cloud Model Studio  "]
+        ENVV["🔑 Environment Variables\nQWEN_API_KEY · QWEN_BASE_URL · QWEN_MODEL"]:::qwen
+        QREAL["QwenClient\nDashScope OpenAI-compatible API\ndashscope-intl.aliyuncs.com"]:::qwen
+        QRES["ResilientQwenClient\nauto-fallback wrapper"]:::qwen
+        QMOCK["🔒 MockQwenClient\nMOCK_MODEL_MODE · no key required\ndeterministic offline fallback"]:::qwen
+
+        ENVV --> QREAL --> QRES
+        QRES -. "API error / no key" .-> QMOCK
+    end
+
+    GEN --> QREAL
+    CRIT --> QREAL
+    SYNTH --> QREAL
+    QRES & QMOCK --> QSTATUS
+
+    %% ── Hybrid Memory ────────────────────────────────────────────────────
+    subgraph HMEM["  🧠  Hybrid Memory  ·  HybridMemoryStore  "]
+        CHROMA["ChromaDB\nSemantic embeddings\nEpisodic memory · cosine similarity"]:::mem
+        NEO4J["Neo4j  ✦  graph-ready\nTask → Artifact → Lesson edges\nSafe no-op when absent"]:::mem
+    end
+
+    SYNTH --> CHROMA & NEO4J
+
+    %% ── Dashboard outputs ────────────────────────────────────────────────
+    EXEC  --> VERDICT["✅ / ✗  Final Verdict"]:::out
+    SYNTH --> ARTPREV["📄 Artifact Preview\nbuild_artifact_preview_html()"]:::out
+    SYNTH --> DLREP["⬇️ Downloadable Report\nbuild_demo_summary_text()"]:::out
+    CHROMA & NEO4J --> MEMEV["🧩 Memory Evidence Panel\nChroma · Neo4j · Hybrid · lesson counts"]:::out
+
+    VERDICT & ARTPREV & DLREP & MEMEV --> DASH["📊 Streamlit Dashboard  ·  command center\nTimeline · Critic Findings · Memory Writes · Verdict · Download"]:::dash

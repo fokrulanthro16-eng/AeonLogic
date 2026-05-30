@@ -1,50 +1,110 @@
 # AeonLogic — Architecture
 
-> Full architecture reference with Mermaid diagram, component breakdown, Qwen Cloud integration, and environment-based secret handling.
+> Full architecture reference with Mermaid diagram, component breakdown, Qwen Cloud / Alibaba Cloud integration, and environment-based secret handling.
+
+Standalone diagram file: [`docs/architecture-diagram.mmd`](architecture-diagram.mmd)
 
 ---
 
 ## Architecture Diagram
 
+> **Devpost export:** paste `docs/architecture-diagram.mmd` into [https://mermaid.live](https://mermaid.live) → Actions → Export PNG → save as `media/screenshots/09-architecture-diagram.png`
+
 ```mermaid
-graph TD
-    User["👤 User / Browser / CLI"] --> SC["Streamlit Command Center\nsrc/aeonlogic/app/streamlit_demo.py"]
-    User --> CLI["CLI  (Typer + Rich)\nsrc/aeonlogic/app/cli.py"]
+%%{init: {"theme": "dark", "themeVariables": {"primaryColor": "#071828", "primaryTextColor": "#c0d4e8", "primaryBorderColor": "#00ccff", "lineColor": "#4090b8", "secondaryColor": "#060f1c", "background": "#050c18", "mainBkg": "#071828"}}}%%
+flowchart TD
+    classDef usr    fill:#050c18,stroke:#00ccff,color:#c0e8ff,stroke-width:2px
+    classDef front  fill:#071828,stroke:#00ccff,color:#b8d8f0
+    classDef eng    fill:#060f1c,stroke:#4090b8,color:#9ac0d8
+    classDef qwen   fill:#071a10,stroke:#00ee88,color:#90e0a8
+    classDef mem    fill:#1a1208,stroke:#ffaa00,color:#ffe8a0
+    classDef out    fill:#0d0a1e,stroke:#9090ff,color:#c8c8ff
+    classDef dash   fill:#071828,stroke:#00ccff,color:#b8d8f0,stroke-width:2px
 
-    SC --> Engine["AeonLogic Engine\nLangGraph Stateful Graph"]
-    CLI --> Engine
+    GH("📦 GitHub Repo\ngithub.com/user/aeonlogic"):::usr
+    LD("🌐 Streamlit Live Demo\nyour-app.streamlit.app"):::usr
 
-    subgraph Engine["AeonLogic Engine — LangGraph"]
-        Dispatch["Dispatcher\nClassify · Risk · Model tier"]
-        Generate["Generator\nProduce candidate artifact"]
-        Critic["Critic / Adversarial Auditor\nStructured Finding objects"]
-        Executor["Executor\nRun artifact · Block on critical"]
-        MemSynth["Memory Synthesizer\nWrite lessons · Retrieve context"]
-
-        Dispatch --> Generate
-        Generate --> Critic
-        Critic -->|APPROVED| Executor
-        Critic -->|REJECTED| Generate
-        Executor --> MemSynth
+    subgraph FE["  🖥️  Streamlit Command Center  ·  streamlit_demo.py  "]
+        INPUT["Mission input · Quick-task presets · Mode badge"]:::front
+        QSTATUS["⚡ Qwen Cloud Status Panel\nRuntime mode · Model · API key masked"]:::front
     end
 
-    Generate --> QwenClient["Qwen Cloud Client\nsrc/aeonlogic/models/qwen_client.py"]
-    Critic --> QwenClient
-    MemSynth --> QwenClient
+    GH & LD --> INPUT
 
-    subgraph QwenCloudIntegration["Qwen Cloud / Alibaba Cloud DashScope"]
-        QwenClient --> RealClient["QwenClient\nOpenAI-compatible DashScope API"]
-        QwenClient --> MockClient["MockQwenClient\nDeterministic offline fallback"]
-        QwenClient --> Resilient["ResilientQwenClient\nAuto-fallback on API error"]
-        RealClient --> DashScope["dashscope-intl.aliyuncs.com\nAlibaba Cloud endpoint"]
+    subgraph ENG["  🔁  AeonLogic Recursive Self-Healing Engine  ·  LangGraph  "]
+        DISP["⚙️ Dispatcher\nClassify · Risk · Model tier"]:::eng
+        GEN["✍️ Generator\nCandidate artifact via Qwen Cloud"]:::eng
+        CRIT["🔍 Critic  /  Adversarial Auditor\nStructured Finding objects"]:::eng
+        REPAIR["🔧 Repair Loop\nFindings injected back → regenerate"]:::eng
+        EXEC["▶️ Executor\nRun · Validate · Block on critical"]:::eng
+        SYNTH["💾 Memory Synthesizer\nWrite failure + success lessons"]:::eng
+
+        DISP --> GEN --> CRIT
+        CRIT -- "REJECTED\nfindings injected" --> REPAIR --> GEN
+        CRIT -- "APPROVED" --> EXEC --> SYNTH
     end
 
-    MemSynth --> ChromaDB["ChromaDB\nSemantic / Episodic Memory\n(embedded or HTTP)"]
-    MemSynth --> Neo4j["Neo4j\nKnowledge Graph\n(optional · safe no-op)"]
+    INPUT --> DISP
 
-    SC --> SidePanel["Qwen Cloud Status Panel\nRuntime mode · Model · API key masked"]
-    SC --> ArtifactPreview["Artifact Preview Panel\nbuild_artifact_preview_html()"]
-    SC --> MemoryEvidence["Memory Evidence Panel\nbuild_memory_evidence_html()"]
+    subgraph QW["  ⚡  Qwen Cloud  ·  Alibaba Cloud Model Studio  "]
+        ENVV["🔑 QWEN_API_KEY · QWEN_BASE_URL · QWEN_MODEL"]:::qwen
+        QREAL["QwenClient\nDashScope OpenAI-compatible API\ndashscope-intl.aliyuncs.com"]:::qwen
+        QRES["ResilientQwenClient\nauto-fallback wrapper"]:::qwen
+        QMOCK["🔒 MockQwenClient\nMOCK_MODEL_MODE · no key required\ndeterministic offline fallback"]:::qwen
+
+        ENVV --> QREAL --> QRES
+        QRES -. "API error / no key" .-> QMOCK
+    end
+
+    GEN --> QREAL
+    CRIT --> QREAL
+    SYNTH --> QREAL
+    QRES & QMOCK --> QSTATUS
+
+    subgraph HMEM["  🧠  Hybrid Memory  ·  HybridMemoryStore  "]
+        CHROMA["ChromaDB\nSemantic embeddings · Episodic memory"]:::mem
+        NEO4J["Neo4j  ✦  graph-ready\nTask → Artifact → Lesson\nSafe no-op when absent"]:::mem
+    end
+
+    SYNTH --> CHROMA & NEO4J
+
+    EXEC  --> VERDICT["✅ / ✗  Final Verdict"]:::out
+    SYNTH --> ARTPREV["📄 Artifact Preview\nbuild_artifact_preview_html()"]:::out
+    SYNTH --> DLREP["⬇️ Downloadable Report\nbuild_demo_summary_text()"]:::out
+    CHROMA & NEO4J --> MEMEV["🧩 Memory Evidence Panel\nChroma · Neo4j · Hybrid · lesson counts"]:::out
+
+    VERDICT & ARTPREV & DLREP & MEMEV --> DASH["📊 Streamlit Dashboard · command center\nTimeline · Critic Findings · Memory Writes · Verdict · Download"]:::dash
+```
+
+---
+
+## Diagram Export Instructions
+
+### Export as PNG for Devpost / screenshots
+
+1. Open [https://mermaid.live](https://mermaid.live) in your browser
+2. Delete the default content in the left editor panel
+3. Open `docs/architecture-diagram.mmd` and paste its full contents into the editor
+4. The diagram renders live in the right panel — verify it looks correct
+5. Click **Actions** (top-right menu) → **Export PNG**
+6. Save the downloaded file as:
+   ```
+   media/screenshots/09-architecture-diagram.png
+   ```
+   Create the `media/screenshots/` directory first if it does not exist:
+   ```powershell
+   New-Item -ItemType Directory -Force media/screenshots
+   ```
+7. Use this PNG in your Devpost submission image gallery
+
+### Render locally (optional)
+
+```powershell
+# Install Mermaid CLI (one-time)
+npm install -g @mermaid-js/mermaid-cli
+
+# Export to PNG
+mmdc -i docs/architecture-diagram.mmd -o media/screenshots/09-architecture-diagram.png -t dark -b "#050c18"
 ```
 
 ---
