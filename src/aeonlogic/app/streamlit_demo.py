@@ -10,6 +10,21 @@ Structure
 """
 from __future__ import annotations
 
+# ---------------------------------------------------------------------------
+# Import-path bootstrap — resolves the src/ layout on Streamlit Cloud and in
+# any environment where PYTHONPATH is not pre-set.  Safe to run multiple times
+# (idempotent: only inserts when absent).
+# ---------------------------------------------------------------------------
+import pathlib as _pathlib
+import sys as _sys
+
+_src = str(_pathlib.Path(__file__).resolve().parent.parent.parent)  # …/src
+if _src not in _sys.path:
+    _sys.path.insert(0, _src)
+
+del _pathlib, _sys  # keep module namespace clean
+
+# ---------------------------------------------------------------------------
 from typing import Any
 
 from aeonlogic.domain.finding import Verdict
