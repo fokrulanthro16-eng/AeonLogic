@@ -202,6 +202,12 @@ Or with `.venv`:
 
 Open [http://localhost:8501](http://localhost:8501) — click **🔐 Security Auth Demo** for a one-click walkthrough.
 
+> **Public demo / reproducible judging:** the default `.env` sets `AEONLOGIC_MODE=mock` so the dashboard runs in `MOCK_MODEL_MODE` with no API key — fully deterministic and reproducible.
+> Real Qwen Cloud mode is supported through secure environment variables (`QWEN_API_KEY`); API keys must never be committed to GitHub.
+> Qwen client code path: `src/aeonlogic/models/qwen_client.py` · Proof docs: [docs/ALIBABA_CLOUD_PROOF.md](docs/ALIBABA_CLOUD_PROOF.md) · [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
+
+**Streamlit deploy entry point:** `src/aeonlogic/app/streamlit_demo.py`
+
 ---
 
 ## Project layout

@@ -18,11 +18,10 @@ MANIFEST
 venv/
 env/
 ENV/
-.env.local
-.env.*.local
 
-# ── Environment secrets ────────────────────────────────────────────────────────
+# ── Environment secrets (never commit .env or any .env.* variant) ─────────────
 .env
+.env.*
 !.env.example
 
 # ── Package managers ──────────────────────────────────────────────────────────
